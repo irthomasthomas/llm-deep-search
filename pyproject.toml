@@ -1,0 +1,37 @@
+
+[project]
+name = "llm-search"
+version = "0.1"
+description = "An LLM plugin for advanced web search, content extraction, and summarization"
+readme = "README.md"
+authors = [{name = "Your Name"}]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "License :: OSI Approved :: Apache Software License"
+]
+dependencies = [
+    "llm",
+    "click",
+    "requests",
+    "beautifulsoup4",
+    "diskcache",
+    "python-dotenv",
+    "html2text",
+    "pdfminer.six",
+    "requests-html",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/llm-search"
+Changelog = "https://github.com/yourusername/llm-search/releases"
+Issues = "https://github.com/yourusername/llm-search/issues"
+
+[project.entry-points.llm]
+search = "llm_search"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

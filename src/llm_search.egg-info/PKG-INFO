@@ -1,0 +1,102 @@
+Metadata-Version: 2.2
+Name: llm-search
+Version: 0.1
+Summary: An LLM plugin for advanced web search, content extraction, and summarization
+Author: Your Name
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/yourusername/llm-search
+Project-URL: Changelog, https://github.com/yourusername/llm-search/releases
+Project-URL: Issues, https://github.com/yourusername/llm-search/issues
+Classifier: License :: OSI Approved :: Apache Software License
+Description-Content-Type: text/markdown
+Requires-Dist: llm
+Requires-Dist: click
+Requires-Dist: requests
+Requires-Dist: beautifulsoup4
+Requires-Dist: diskcache
+Requires-Dist: python-dotenv
+Requires-Dist: html2text
+Requires-Dist: pdfminer.six
+Requires-Dist: requests-html
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+
+[![PyPI](https://img.shields.io/pypi/v/llm-search.svg)](https://pypi.org/project/llm-search/)
+[![Changelog](https://img.shields.io/github/v/release/yourusername/llm-search?include_prereleases&label=changelog)](https://github.com/yourusername/llm-search/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/yourusername/llm-search/blob/main/LICENSE)
+
+An LLM plugin for advanced web search, content extraction, and summarization.
+
+## Installation
+
+Install this plugin in the same environment as [LLM](https://llm.datasette.io/).
+
+```bash
+llm install llm-search
+```
+
+## Configuration
+
+Set the following environment variables:
+
+- `GOOGLE_SEARCH_KEY`: Your Google Custom Search API key
+- `GOOGLE_SEARCH_ID`: Your Google Custom Search Engine ID
+- `BING_CUSTOM_SEARCH_KEY`: Your Bing Custom Search API key
+- `BING_CUSTOM_CONFIG_ID`: Your Bing Custom Search configuration ID
+- `CACHE_DIR`: Directory for caching search results (default: `/tmp/search_cache`)
+- `MAX_RETRIES`: Maximum number of retries for failed requests (default: 3)
+- `RETRY_DELAY`: Delay between retries in seconds (default: 1)
+- `REQUEST_TIMEOUT`: Timeout for HTTP requests in seconds (default: 10)
+
+You can set these in a `.env` file in your project directory.
+
+## Usage
+
+```bash
+llm search -q "Your search query" -n 5 -e google -o results.txt
+```
+
+Options:
+- `-q, --query`: Search query (required)
+- `-n, --num-results`: Number of results to fetch (default: 10, max: 100)
+- `-e, --search-engine`: Search engine to use (choices: google, bing; default: google)
+- `-o, --output`: Output file for results (default: stdout)
+
+## Features
+
+- Web search using Google Custom Search or Bing Custom Search
+- Content extraction from web pages and PDFs
+- JavaScript rendering for dynamic web pages
+- Relevant quote extraction using LLMs
+- Result summarization using LLMs
+- Caching of search results and processed content
+
+## Development
+
+To set up this plugin locally, first checkout the code. Then create a new virtual environment:
+
+```bash
+cd llm-search
+python -m venv venv
+source venv/bin/activate
+```
+
+Now install the dependencies and test dependencies:
+
+```bash
+pip install -e '.[test]'
+```
+
+To run the tests:
+
+```bash
+pytest
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the Apache License 2.0.
