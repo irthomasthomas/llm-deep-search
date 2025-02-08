@@ -1,0 +1,143 @@
+Search Results for: groq api curl command
+groq chat completions r1 model
+groq api reference
+curl request groq completion
+==========================
+URL: https://github.com/groq/groq-python
+Relevant Quotes:
+
+URL: https://github.com/groq/groq-python/blob/main/examples/chat_completion.py
+Relevant Quotes:
+
+URL: https://github.com/groq/groq-python/blob/main/examples/chat_completion_streaming.py
+Relevant Quotes:
+
+URL: https://pypi.org/project/groq/
+Relevant Quotes:
+
+URL: https://github.com/groq/groq-python/blob/main/src/groq/types/chat/chat_completion.py
+Relevant Quotes:
+
+URL: https://github.com/groq/groq-python/blob/main/api.md
+Relevant Quotes:
+The provided text appears to be the HTML content of a GitHub page, specifically the documentation for the Groq Python API. The API documentation covers various endpoints and methods for interacting with the Groq platform, including:
+
+1. **Completions**: Methods for creating and retrieving completions, such as `client.chat.completions.create()` and `client.chat.completions.retrieve()`.
+2. **Embeddings**: Methods for creating and retrieving embeddings, such as `client.embeddings.create()` and `client.embeddings.retrieve()`.
+3. **Audio**: Methods for creating and retrieving audio transcriptions and translations, such as `client.audio.transcriptions.create()` and `client.audio.translations.create()`.
+4. **Models**: Methods for retrieving, listing, and deleting models, such as `client.models.retrieve()`, `client.models.list()`, and `client.models.delete()`.
+5. **Batches**: Methods for creating, retrieving, and listing batches, such as `client.batches.create()`, `client.batches.retrieve()`, and `client.batches.list()`.
+6. **Files**: Methods for creating, listing, deleting, and retrieving file content and information, such as `client.files.create()`, `client.files.list()`, `client.files.delete()`, and `client.files.content()`.
+
+Each section provides a brief description of the available methods, along with links to the relevant documentation and code examples.
+
+To use this API, you would need to import the necessary modules and classes, and then create an instance of the `client` object to call the desired methods. For example:
+```python
+from groq import Client
+
+client = Client()
+completion = client.chat.completions.create(params={'prompt': 'Hello world'})
+print(completion)
+```
+Note that this is just a summary of the API documentation, and you should consult the official documentation and code examples for more detailed information on how to use the Groq Python API.
+URL: https://github.com/groq/groq-api-cookbook
+Relevant Quotes:
+
+URL: https://github.com/groq/groq-python/blob/main/README.md
+Relevant Quotes:
+
+URL: https://github.com/EvickaStudio/Groq-Chat
+Relevant Quotes:
+
+URL: https://github.com/instructor-ai/instructor/blob/main/docs/examples/groq.md
+Relevant Quotes:
+The provided text appears to be a GitHub page for a repository called "instructor" by "instructor-ai". The specific page is for a file called "groq.md" which contains information about using Groq for inference.
+
+Here's a summary of the content:
+
+1. The page starts with a navigation menu and a search bar.
+2. It then displays the repository information, including the number of forks, stars, and issues.
+3. The main content of the page is the "groq.md" file, which contains the following information:
+	* A title and description for using Groq for inference.
+	* Instructions on how to use Groq, including setting up a Groq API key and installing required pip packages.
+	* An example code snippet in Python that demonstrates how to use Groq for inference with the mixtral-8x7b model.
+	* A mention of another example file called "groq_example2.py" that can be found in the repository.
+4. The page ends with a footer containing links to GitHub's terms, privacy policy, security, status, documentation, and contact information.
+
+The example code snippet provided in the "groq.md" file is as follows:
+```python
+import os
+from pydantic import BaseModel, Field
+from typing import List
+from groq import Groq
+import instructor
+
+class Character(BaseModel):
+    name: str
+    fact: List[str] = Field(..., description="A list of facts about the subject")
+
+client = Groq(
+    api_key=os.environ.get('GROQ_API_KEY'),
+)
+client = instructor.from_groq(client, mode=instructor.Mode.TOOLS)
+
+resp = client.chat.completions.create(
+    model="mixtral-8x7b-32768",
+    messages=[
+        {
+            "role": "user",
+            "content": "Tell me about the company Tesla",
+        }
+    ],
+    response_model=Character,
+)
+print(resp.model_dump_json(indent=2))
+```
+This code sets up a Groq client with an API key, creates a character model, and uses the client to generate a completion response to a user query about the company Tesla. The response is then printed in JSON format.
+
+Summary:
+========
+The provided text is a summary of the Groq Python API documentation and a GitHub page for a repository called "instructor" by "instructor-ai". The API documentation covers various endpoints and methods for interacting with the Groq platform, including completions, embeddings, audio, models, batches, and files.
+
+To use the Groq Python API, you would need to import the necessary modules and classes, create an instance of the `client` object, and then call the desired methods. For example:
+```python
+from groq import Client
+
+client = Client()
+completion = client.chat.completions.create(params={'prompt': 'Hello world'})
+print(completion)
+```
+The GitHub page for the "instructor" repository contains a file called "groq.md" which provides information on using Groq for inference. The file includes instructions on how to set up a Groq API key, install required pip packages, and an example code snippet in Python that demonstrates how to use Groq for inference with the mixtral-8x7b model.
+
+The example code snippet provided in the "groq.md" file is as follows:
+```python
+import os
+from pydantic import BaseModel, Field
+from typing import List
+from groq import Groq
+import instructor
+
+class Character(BaseModel):
+    name: str
+    fact: List[str] = Field(..., description="A list of facts about the subject")
+
+client = Groq(
+    api_key=os.environ.get('GROQ_API_KEY'),
+)
+client = instructor.from_groq(client, mode=instructor.Mode.TOOLS)
+
+resp = client.chat.completions.create(
+    model="mixtral-8x7b-32768",
+    messages=[
+        {
+            "role": "user",
+            "content": "Tell me about the company Tesla",
+        }
+    ],
+    response_model=Character,
+)
+print(resp.model_dump_json(indent=2))
+```
+This code sets up a Groq client with an API key, creates a character model, and uses the client to generate a completion response to a user query about the company Tesla. The response is then printed in JSON format.
+
+In summary, the Groq Python API provides a range of methods for interacting with the Groq platform, and the "instructor" repository provides an example of how to use Groq for inference with a specific model.

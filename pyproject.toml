@@ -1,6 +1,6 @@
 
 [project]
-name = "llm-search"
+name = "llm-deep-search"
 version = "0.1"
 description = "An LLM plugin for advanced web search, content extraction, and summarization"
 readme = "README.md"

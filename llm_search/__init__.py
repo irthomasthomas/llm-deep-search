@@ -33,15 +33,15 @@ BING_CUSTOM_CONFIG_ID = os.getenv("BING_CUSTOM_CONFIG_ID")
 AZURE_REGION = os.getenv("AZURE_REGION")
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", 3))
 RETRY_DELAY = int(os.getenv("RETRY_DELAY", 1))
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 10))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 2))
 
 # New configuration for LLM models
-DEFAULT_LLM_MODELS = ["cerebras-llama3.3-70b", "llama-3.3-70b-versatile"]
+DEFAULT_LLM_MODELS = ["cerebras-llama3.3-70b", "llama-3.3-70b-versatile", "gemini-2.0-flash-lite-preview-02-05"]
 LLM_MODELS = os.getenv("LLM_MODELS", ",".join(DEFAULT_LLM_MODELS)).split(",")
 
 # --- Logging Setup ---
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 

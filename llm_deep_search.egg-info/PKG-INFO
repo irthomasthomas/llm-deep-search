@@ -1,8 +1,10 @@
 Metadata-Version: 2.2
-Name: llm-search
+Name: llm-deep-search
 Version: 0.1
 Summary: An LLM plugin for advanced web search, content extraction, and summarization
+Home-page: https://github.com/irthomasthomas/llm-search
 Author: Your Name
+Author-email: your.email@example.com
 License: Apache-2.0
 Project-URL: Homepage, https://github.com/yourusername/llm-search
 Project-URL: Changelog, https://github.com/yourusername/llm-search/releases
@@ -20,19 +22,19 @@ Requires-Dist: pdfminer.six
 Requires-Dist: requests-html
 Provides-Extra: test
 Requires-Dist: pytest; extra == "test"
+Dynamic: author-email
+Dynamic: home-page
 
-[![PyPI](https://img.shields.io/pypi/v/llm-search.svg)](https://pypi.org/project/llm-search/)
-[![Changelog](https://img.shields.io/github/v/release/yourusername/llm-search?include_prereleases&label=changelog)](https://github.com/yourusername/llm-search/releases)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/yourusername/llm-search/blob/main/LICENSE)
-
-An LLM plugin for advanced web search, content extraction, and summarization.
+# LLM Search
 
 ## Installation
-
-Install this plugin in the same environment as [LLM](https://llm.datasette.io/).
-
 ```bash
-llm install llm-search
+llm install llm-deep-search
+```
+
+Install at least one of:
+```bash
+llm install llm-cerebras llm-gemini llm-groq
 ```
 
 ## Configuration
@@ -42,11 +44,12 @@ Set the following environment variables:
 - `GOOGLE_SEARCH_KEY`: Your Google Custom Search API key
 - `GOOGLE_SEARCH_ID`: Your Google Custom Search Engine ID
 - `BING_CUSTOM_SEARCH_KEY`: Your Bing Custom Search API key
-- `BING_CUSTOM_CONFIG_ID`: Your Bing Custom Search configuration ID
+- `BING_CUSTOM_CONFIG_ID`: Your Bing Custom Search Configuration ID
 - `CACHE_DIR`: Directory for caching search results (default: `/tmp/search_cache`)
 - `MAX_RETRIES`: Maximum number of retries for failed requests (default: 3)
 - `RETRY_DELAY`: Delay between retries in seconds (default: 1)
 - `REQUEST_TIMEOUT`: Timeout for HTTP requests in seconds (default: 10)
+- `LLM_MODELS`: Comma-separated list of LLM models to use (default: "cerebras-llama3.3-70b,gemini-2")
 
 You can set these in a `.env` file in your project directory.
 
@@ -61,6 +64,13 @@ Options:
 - `-n, --num-results`: Number of results to fetch (default: 10, max: 100)
 - `-e, --search-engine`: Search engine to use (choices: google, bing; default: google)
 - `-o, --output`: Output file for results (default: stdout)
+- `--models`: Comma-separated list of LLM models to use (overrides `LLM_MODELS` environment variable)
+
+To specify custom models, use the `--models` option:
+
+```bash
+llm search -q "Your query" --models "model1,model2,model3"
+```
 
 ## Features
 
@@ -70,33 +80,16 @@ Options:
 - Relevant quote extraction using LLMs
 - Result summarization using LLMs
 - Caching of search results and processed content
+- Configurable LLM model selection
+- **Fallback Search:** If the primary search engines (Google and Bing) fail, a fallback search is performed using DuckDuckGo and Google via direct web scraping. *In development*
+- **Query Generator:** (Planned) Automatically refine and expand your search query using LLMs to improve search result relevance.
+- **Deep Research Mode:** (Planned) An enhanced mode that performs iterative searches, identifies key insights, and synthesizes comprehensive reports.
+
+## Roadmap
+
+- **Fallback Search:** Implement automatic fallback to DuckDuckGo and Google when primary search APIs fail.
+- **Query Generator:** Develop an LLM-powered query generator to suggest related and more effective search terms.
+- **Deep Research Mode:** Create a "deep research" mode that performs multiple searches, follows promising leads, and generates detailed reports.  This will involve iterative searching, result analysis, and synthesis using LLMs.
 
 ## Development
 
-To set up this plugin locally, first checkout the code. Then create a new virtual environment:
-
-```bash
-cd llm-search
-python -m venv venv
-source venv/bin/activate
-```
-
-Now install the dependencies and test dependencies:
-
-```bash
-pip install -e '.[test]'
-```
-
-To run the tests:
-
-```bash
-pytest
-```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the Apache License 2.0.

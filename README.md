@@ -1,8 +1,14 @@
 # LLM Search
 
 ## Installation
+```bash
+llm install llm-deep-search
+```
 
-[Keep existing installation instructions]
+Install at least one of:
+```bash
+llm install llm-cerebras llm-gemini llm-groq
+```
 
 ## Configuration
 
@@ -48,8 +54,65 @@ llm search -q "Your query" --models "model1,model2,model3"
 - Result summarization using LLMs
 - Caching of search results and processed content
 - Configurable LLM model selection
+- **Fallback Search:** If the primary search engines (Google and Bing) fail, a fallback search is performed using DuckDuckGo and Google via direct web scraping. *In development*
+- **Query Generator:** (Planned) Automatically refine and expand your search query using LLMs to improve search result relevance.
+- **Deep Research Mode:** (Planned) An enhanced mode that performs iterative searches, identifies key insights, and synthesizes comprehensive reports.
+
+## Roadmap
+
+- **Fallback Search:** Implement automatic fallback to DuckDuckGo and Google when primary search APIs fail.
+- **Query Generator:** Develop an LLM-powered query generator to suggest related and more effective search terms.
+- **Deep Research Mode:** Create a "deep research" mode that performs multiple searches, follows promising leads, and generates detailed reports.  This will involve iterative searching, result analysis, and synthesis using LLMs.
 
 ## Development
 
-[Keep existing development instructions]
+The `llm-search` tool should be significantly enhanced by implementing a Deep Research Agent with a multi-tiered architecture. The core of this agent will manage an iterative search process, leveraging a combination of fast, initial searches and more in-depth analysis.
 
+**Data Structures:**
+
+Central to the agent is robust state management, facilitated by these classes (or similar data structures):
+
+*   **`ResearchState`:** Stores the overall research progress, including the original query, refined queries, search results, processed results, current iteration, a synthesized summary, identified information gaps, a stop reason, and user feedback.
+*   **`SearchResult`:** Represents a single search result, containing the URL, title, snippet, original search engine rank, and the source search engine.
+*   **`ProcessedResult`:**  Holds the fetched and cleaned content of a web page, relevant quotes extracted by an LLM, a relevance score, a summary of the page content, identified entities, and the specific LLM used for processing.
+
+**Algorithms:**
+
+The agent will employ these key algorithms:
+
+*   **Query Refinement:** An LLM will generate refined search queries based on the original query and identified information gaps.  The prompt will instruct the LLM to output a JSON list of queries.
+*   **Result Synthesis:**  An LLM synthesizes information from multiple processed results into a concise summary, addressing the original query and resolving information gaps. The LLM prompt includes source URLs and content summaries, requesting only the synthesized summary text as output.
+*   **Relevance Scoring:** Combines the initial search engine rank, an LLM-assigned relevance score, keyword density, and entity matching to produce a final relevance score. A weighted average can be used (e.g., `0.4 * (1/(search_rank + 1)) + 0.4 * llm_score + 0.1 * keyword_density + 0.1 * entity_match`).
+*   **Information Gap Identification:** An LLM identifies information gaps based on the original query and the current summary. The prompt requests a JSON list of information gaps.
+
+**Iterative Search Process:**
+
+1.  **Initialization:**  Create a `ResearchState` with the user's initial query.
+2.  **Initial Search:**  Perform an initial search (e.g., using Google or Bing).
+3.  **Process Results:**  Process each result: fetch content, extract text, analyze with a fast LLM, calculate the relevance score.
+4.  **Initial Summary:** Generate an initial summary.
+5.  **Identify Information Gaps:** Use an LLM to identify gaps in the current knowledge.
+6.  **Iterative Loop:**
+    *   Refine Queries: Generate new queries based on information gaps.
+    *   Perform Search: Execute searches for the refined queries.
+    *   Process Results: Analyze new results.
+    *   Update Summary: Synthesize new information into the summary.
+    *   Identify Information Gaps: Re-assess information gaps.
+    *   Check Stopping Criteria (iteration limit, time limit, user stop, or information saturation).
+
+**Stopping Criteria:**
+
+*   Maximum iteration count reached.
+*   Time limit exceeded.
+*   User interruption.
+*   Information saturation (no new information gaps or summary quality exceeding a threshold).
+
+**Code Refactoring:**
+
+*   **Asynchronous Operations:**  Convert `fetch_content` to use `aiohttp` for asynchronous HTTP requests. Rewrite `process_single_url` to be asynchronous.  Use `asyncio.gather` for concurrent processing.
+*   **Tiered LLM Selection:**  Modify `call_llm` to accept a tier parameter (e.g., "fast," "medium," "powerful") and select models accordingly.
+*   **Error Handling:**  Implement specific exception handling for network errors, LLM errors, and content extraction. Log detailed error information.
+
+**User Interaction:**
+
+After each iteration (or a configurable number), present the current summary and identified information gaps. Allow the user to provide feedback, mark gaps as resolved, suggest new queries, or stop the research.
