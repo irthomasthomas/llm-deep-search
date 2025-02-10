@@ -1,0 +1,12 @@
+llm
+click
+httpx
+python-dotenv
+diskcache
+beautifulsoup4
+
+[test]
+pytest
+pytest-asyncio
+pytest-mock
+unittest-mock

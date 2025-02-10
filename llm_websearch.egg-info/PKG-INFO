@@ -1,3 +1,28 @@
+Metadata-Version: 2.2
+Name: llm-websearch
+Version: 0.1.0
+Summary: LLM plugin for web searching and deep searching.
+Home-page: https://github.com/yourusername/llm-websearch
+Author: Thomas Thomas
+Author-email: irthomasthomas@gmail.com
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: llm
+Requires-Dist: click
+Requires-Dist: httpx
+Requires-Dist: python-dotenv
+Requires-Dist: diskcache
+Requires-Dist: beautifulsoup4
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"
+Requires-Dist: pytest-asyncio; extra == "test"
+Requires-Dist: pytest-mock; extra == "test"
+Requires-Dist: unittest-mock; extra == "test"
+Dynamic: author
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: requires-python
+
 # llm-websearch Plugin
 
 The `llm-websearch` plugin is an advanced web search tool for the `llm` CLI that leverages the power of large language models (LLMs) to perform sophisticated web searches, content analysis, and summarization.

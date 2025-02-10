@@ -1,2 +1,0 @@
-[llm]
-search = llm_search
