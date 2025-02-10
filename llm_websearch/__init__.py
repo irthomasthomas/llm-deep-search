@@ -31,7 +31,7 @@ MAX_RESULTS = 100
 DEFAULT_NUM_RESULTS = 10
 CACHE_DIR = os.getenv("CACHE_DIR", "/tmp/llm_websearch_cache")
 CACHE_EXPIRATION = timedelta(hours=24)
-DEFAULT_LLM_MODEL = "gemini-2"  # You can change this to your preferred model
+DEFAULT_LLM_MODEL = "gemini-2.0-pro-exp-02-05"  # Updated default model
 MAX_RETRIES = 3
 RETRY_DELAY = 1  # Initial delay in seconds
 MAX_ITERATIONS = 3  # Maximum number of iterative search rounds
@@ -299,7 +299,7 @@ def fetch_and_summarize(url: str, timeout: float, max_content_length: int = 1000
                     "prompt",
                     "Summarize the following web page content:\n\n" + text_content,
                     "-m",
-                    "gemini-2.0-pro-exp-02-05"
+                    "gemini-2.0-pro-exp-02-05"  # Updated model
                 ],
                 capture_output=True,
                 text=True,
@@ -337,7 +337,7 @@ Key Themes:"""
     # Use subprocess to call the llm CLI
     try:
         result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
+            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],  # Updated model
             capture_output=True,
             text=True,
             check=True
@@ -367,7 +367,7 @@ Contradictions/Conflicts:"""
     # Use subprocess to call the llm CLI
     try:
         result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
+            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],   # Updated model
             capture_output=True,
             text=True,
             check=True
@@ -394,7 +394,7 @@ Generate a list of refined search queries that would help to gather more specifi
      # Use subprocess to call the llm CLI
     try:
         result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
+            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],  # Updated model
             capture_output=True,
             text=True,
             check=True
@@ -424,7 +424,7 @@ def create_overall_summary(summaries: str, query: str) -> str:
 {summaries}"""
     try:
         result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
+            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],  # Updated model
             capture_output=True,
             text=True,
             check=True

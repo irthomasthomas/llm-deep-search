@@ -72,7 +72,7 @@ def generate_summary(text: str, timeout: float = 30.0) -> str:
     check_timeout(start_time, timeout)
     
     prompt = f"Please summarize the following text:\n\n{text}"
-    return call_llm(prompt, "You are a helpful assistant.", ["cerebras-llama3.3-70b"], timeout)
+    return call_llm(prompt, "You are a helpful assistant.", ["gemini-2.0-flash"], timeout) # Updated model
 
 def process_single_url(url: str, timeout: float = 30.0) -> Dict:
     """Process a single URL to extract relevant content"""
