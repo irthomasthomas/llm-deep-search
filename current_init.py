@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_KEY")
 GOOGLE_SEARCH_ID = os.getenv("GOOGLE_SEARCH_ID")
-BING_SEARCH_API_KEY = os.getenv("BING_SEARCH_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")
+BING_SEARCH_API_KEY = os.getenv("BING_CUSTOM_SEARCH_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")
 MAX_RESULTS = 100
 DEFAULT_NUM_RESULTS = 10
 CACHE_DIR = os.getenv("CACHE_DIR", "/tmp/llm_websearch_cache")

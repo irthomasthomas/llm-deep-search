@@ -1,6 +1,5 @@
 README.md
 pyproject.toml
-setup.py
 llm_websearch/__init__.py
 llm_websearch/cache.py
 llm_websearch/deep_research.py
@@ -17,6 +16,7 @@ llm_websearch.egg-info/dependency_links.txt
 llm_websearch.egg-info/entry_points.txt
 llm_websearch.egg-info/requires.txt
 llm_websearch.egg-info/top_level.txt
+llm_websearch/tests/test_websearch.py
 tests/test_cache.py
 tests/test_deep_research.py
 tests/test_detailed_analysis.py

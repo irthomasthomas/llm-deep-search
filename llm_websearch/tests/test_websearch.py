@@ -14,7 +14,7 @@ import llm
 def mock_env_vars(monkeypatch):
     monkeypatch.setenv("GOOGLE_SEARCH_KEY", "mock_google_key")
     monkeypatch.setenv("GOOGLE_SEARCH_ID", "mock_google_id")
-    monkeypatch.setenv("BING_SEARCH_API_KEY", "mock_bing_key")
+    monkeypatch.setenv("BING_CUSTOM_SEARCH_KEY", "mock_bing_key")
 
 # Mock httpx.Client for API calls
 @pytest.fixture
