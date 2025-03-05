@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 import time
 import threading
 from functools import wraps, lru_cache
-import subprocess
 
 load_dotenv()
 
@@ -25,12 +24,14 @@ logger = logging.getLogger(__name__)
 # Configuration
 GOOGLE_SEARCH_KEY = os.getenv("GOOGLE_SEARCH_KEY")
 GOOGLE_SEARCH_ID = os.getenv("GOOGLE_SEARCH_ID")
-BING_SEARCH_API_KEY = os.getenv("BING_SEARCH_API_KEY") or os.getenv("BING_SUBSCRIPTION_KEY")
+BING_CUSTOM_SEARCH_KEY = os.getenv("BING_CUSTOM_SEARCH_KEY")
+BING_CUSTOM_CONFIG_ID = os.getenv("BING_CUSTOM_CONFIG_ID")
+AZURE_REGION = os.getenv("AZURE_REGION")
 MAX_RESULTS = 100
 DEFAULT_NUM_RESULTS = 10
 CACHE_DIR = os.getenv("CACHE_DIR", "/tmp/llm_websearch_cache")
 CACHE_EXPIRATION = timedelta(hours=24)
-DEFAULT_LLM_MODEL = "gpt-3.5-turbo"  # You can change this to your preferred model
+DEFAULT_LLM_MODEL = "gemini-2"  # You can change this to your preferred model
 MAX_RETRIES = 3
 RETRY_DELAY = 1  # Initial delay in seconds
 MAX_ITERATIONS = 3  # Maximum number of iterative search rounds
@@ -47,7 +48,8 @@ class SearchError(Exception):
     pass
 
 class SearchResult:
-    def __init__(self, url: str, title: str, snippet: str, rank: int, source: str):
+    """Class to represent a single search result."""
+    def __init__(self, url: str, title: str, snippet: str, rank: int, source: str = "unknown"):
         self.url = url
         self.title = title
         self.snippet = snippet
@@ -55,213 +57,21 @@ class SearchResult:
         self.source = source
 
 class ProcessedResult:
-    def __init__(self, url: str, title: str, summary: str, source: str):
+    """Class to represent a search result that has been processed (e.g., summarized)."""
+    def __init__(self, url: str, title: str, summary: str, source: str = "unknown"):
         self.url = url
         self.title = title
         self.summary = summary
         self.source = source
 
-class RateLimiter:
-    def __init__(self, rate: int):
-        self.rate = rate
-        self.tokens = rate
-        self.last_refill = time.time()
-        self.lock = threading.Lock()
-
-    def acquire(self):
-        with self.lock:
-            now = time.time()
-            time_passed = now - self.last_refill
-            self.tokens = min(self.rate, self.tokens + time_passed * self.rate)
-            self.last_refill = now
-
-            if self.tokens < 1:
-                return False
-            self.tokens -= 1
-            return True
-
-def rate_limited(rate_limiter: RateLimiter):
-    def decorator(func: Callable):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            while not rate_limiter.acquire():
-                time.sleep(0.1)
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-google_rate_limiter = RateLimiter(GOOGLE_RATE_LIMIT)
-bing_rate_limiter = RateLimiter(BING_RATE_LIMIT)
-
-def _mock_search_results(query: str, num_results: int = 10) -> List[Dict]:
-    """Provides mock search results for fallback."""
-    logger.debug(f"Generating mock results for query: {query}")
-    results = []
-    for i in range(num_results):
-        results.append({
-            "title": f"Mock Result {i} for '{query}'",
-            "url": f"https://mock.example.com/{i}",
-            "snippet": f"This is a mock result {i} for the query '{query}'.",
-            "source": "mock"
-        })
-    return results
-
-def _cache_key(func_name: str, *args, **kwargs) -> str:
-    """Generate a cache key based on function name and arguments."""
-    key = f"{func_name}:{args}:{kwargs}"
+def _cache_key(prefix: str, *args) -> str:
+    """Create a cache key from a prefix and args."""
+    key = prefix + ":" + ":".join(str(arg) for arg in args)
     return hashlib.md5(key.encode()).hexdigest()
 
-@rate_limited(google_rate_limiter)
-def google_search(query: str, num_results: int = 10, timeout: float = 30.0) -> List[SearchResult]:
-    """Performs a Google search using the Custom Search JSON API with retries."""
-    cache_key = _cache_key("google_search", query, num_results, timeout)
-    cached_result = cache.get(cache_key)
-    if cached_result:
-        logger.info(f"Using cached results for Google search: {query}")
-        return cached_result
+# Fixed functions with proper llm API usage
 
-    if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_ID:
-        raise SearchError("GOOGLE_SEARCH_KEY and GOOGLE_SEARCH_ID must be set.")
-
-    url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": GOOGLE_SEARCH_KEY,
-        "cx": GOOGLE_SEARCH_ID,
-        "q": query,
-        "num": min(num_results, 10),  # API allows max 10 results per request
-    }
-
-    results = []
-    for attempt in range(MAX_RETRIES):
-        try:
-            with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-                while len(results) < num_results:
-                    response = client.get(url, params=params)
-                    response.raise_for_status()
-                    data = response.json()
-
-                    if "items" in data:
-                        for rank, item in enumerate(data["items"], start=len(results)):
-                            results.append(SearchResult(
-                                url=item["link"],
-                                title=item["title"],
-                                snippet=item.get("snippet", ""),
-                                rank=rank,
-                                source="google"
-                            ))
-
-                        if "nextPage" not in data["queries"]:
-                            break
-                        params["start"] = data["queries"]["nextPage"][0]["startIndex"]
-                    else:
-                        break
-
-            results = results[:num_results]
-            cache.set(cache_key, results, expire=CACHE_EXPIRATION.total_seconds())
-            return results
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logger.warning(f"Attempt {attempt + 1} failed for Google search: {e}")
-            if attempt == MAX_RETRIES - 1:
-                raise SearchError(f"Google Search API failed after multiple retries: {e}")
-            time.sleep(RETRY_DELAY * (2 ** attempt))  # Exponential backoff
-        except Exception as e:
-            logger.exception(f"An unexpected error occurred during Google search: {e}")
-            raise
-
-@rate_limited(bing_rate_limiter)
-def bing_search(query: str, num_results: int = 10, timeout: float = 30.0) -> List[SearchResult]:
-    """Performs a Bing search using the Bing Web Search API with retries."""
-    cache_key = _cache_key("bing_search", query, num_results, timeout)
-    cached_result = cache.get(cache_key)
-    if cached_result:
-        logger.info(f"Using cached results for Bing search: {query}")
-        return cached_result
-
-    if not BING_SEARCH_API_KEY:
-        raise SearchError("BING_SEARCH_API_KEY must be set.")
-
-    url = "https://api.bing.microsoft.com/v7.0/search"
-    headers = {"Ocp-Apim-Subscription-Key": BING_SEARCH_API_KEY}
-    params = {
-        "q": query,
-        "count": min(num_results, 50),  # API allows max 50 results per request
-        "offset": 0,
-    }
-
-    results = []
-    for attempt in range(MAX_RETRIES):
-        try:
-            with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-                while len(results) < num_results:
-                    response = client.get(url, headers=headers, params=params)
-                    response.raise_for_status()
-                    data = response.json()
-
-                    if "webPages" in data and "value" in data["webPages"]:
-                        for rank, item in enumerate(data["webPages"]["value"], start=len(results)):
-                            results.append(SearchResult(
-                                url=item["url"],
-                                title=item["name"],
-                                snippet=item.get("snippet", ""),
-                                rank=rank,
-                                source="bing"
-                            ))
-
-                        if len(results) >= num_results or len(data["webPages"]["value"]) < params["count"]:
-                            break
-                        params["offset"] += params["count"]
-                    else:
-                        break
-
-            results = results[:num_results]
-            cache.set(cache_key, results, expire=CACHE_EXPIRATION.total_seconds())
-            return results
-        except (httpx.RequestError, httpx.HTTPStatusError) as e:
-            logger.warning(f"Attempt {attempt + 1} failed for Bing search: {e}")
-            if attempt == MAX_RETRIES - 1:
-                raise SearchError(f"Bing Search API failed after multiple retries: {e}")
-            time.sleep(RETRY_DELAY * (2 ** attempt))  # Exponential backoff
-        except Exception as e:
-             logger.exception(f"An unexpected error occurred during Bing search: {e}")
-             raise
-
-def search(query: str, num_results: int = 10, timeout: float = 30.0) -> List[SearchResult]:
-    """Performs a web search using Bing and Google, falling back to mock results."""
-    logger.info(f"Performing web search for query: {query}, num_results: {num_results}, timeout: {timeout}")
-    
-    results = []
-    errors = []
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future_to_engine = {
-            executor.submit(google_search, query, num_results, timeout): "Google",
-            executor.submit(bing_search, query, num_results, timeout): "Bing"
-        }
-
-        for future in as_completed(future_to_engine):
-            engine = future_to_engine[future]
-            try:
-                engine_results = future.result()
-                results.extend(engine_results)
-                logger.info(f"{engine} search successful for query: {query}")
-            except SearchError as e:
-                logger.warning(f"{engine} search failed: {e}")
-                errors.append(str(e))
-
-    if not results:
-        if errors:
-            logger.error(f"All searches failed. Errors: {', '.join(errors)}")
-        logger.warning("Falling back to mock search results.")
-        return _mock_search_results(query, num_results)
-
-    # Deduplicate results based on URL and sort by rank
-    unique_results = list({r.url: r for r in results}.values())
-    unique_results.sort(key=lambda x: x.rank)
-
-    return unique_results[:num_results]
-
-@lru_cache(maxsize=100)
-def fetch_and_summarize(url: str, query:str, timeout: float = 30.0) -> str:
+def fetch_and_summarize(url: str, query: str, timeout: float = 30.0, model_name: str = DEFAULT_LLM_MODEL) -> str:
     """Fetches content from a URL, extracts text, and summarizes it using an LLM."""
     cache_key = _cache_key("fetch_and_summarize", url, query)
     cached_result = cache.get(cache_key)
@@ -269,7 +79,7 @@ def fetch_and_summarize(url: str, query:str, timeout: float = 30.0) -> str:
         logger.info(f"Using cached summary for URL: {url}")
         return cached_result
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        with httpx.Client(timeout=timeout) as client:
             response = client.get(url)
             response.raise_for_status()
 
@@ -287,151 +97,279 @@ def fetch_and_summarize(url: str, query:str, timeout: float = 30.0) -> str:
         if not text:
             logger.warning(f"No text content found at URL: {url}")
             return "Error: No text content found."
-        # Use llm to summarize the content
-        prompt = f"""Summarize the following text, focusing on information relevant to the query '{query}':
+        
+        # Use llm to summarize the content properly using the current API
+        prompt_text = f"""Summarize the following text, focusing on information relevant to the query '{query}':
 
 {text[:4000]}"""
-
-        # Use subprocess to call the llm CLI
-        result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
-            capture_output=True,
-            text=True,
-            check=True  # Raise an exception if the command fails
-        )
-        summary = result.stdout.strip()
-
+        
+        # Get the model
+        model = llm.get_model(model_name)
+        
+        # Create the prompt and get the response
+        response = model.prompt(prompt_text)
+        
+        # Get the text of the response
+        summary = response.text()
+        
         cache.set(cache_key, summary, expire=CACHE_EXPIRATION.total_seconds())
         return summary
-
-    except httpx.RequestError as e:
-        logger.error(f"Failed to fetch content from {url}: {e}")
-        return f"Error: Failed to fetch content: {e}"
+        
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error fetching {url}: {e.response.status_code}")
-        return f"Error: HTTP error: {e.response.status_code}"
-    except subprocess.CalledProcessError as e:
-        logger.error(f"LLM command failed: {e}")
-        return f"Error: LLM command failed: {e.stderr}"
+        return f"Error: HTTP {e.response.status_code} when fetching content."
+    except httpx.RequestError as e:
+        logger.error(f"Error fetching {url}: {e}")
+        return f"Error: Failed to fetch content - {str(e)}"
     except Exception as e:
-        logger.exception(f"An unexpected error occurred while fetching and summarizing {url}: {e}")
-        return f"Error: An unexpected error occurred: {str(e)}"
+        logger.error(f"An unexpected error occurred while fetching and summarizing {url}: {e}")
+        return f"Error: {str(e)}"
 
-@lru_cache(maxsize=100)
-def extract_themes(summaries: str, query: str) -> List[str]:
-    """Extracts key themes from a list of summaries using an LLM."""
-    if not summaries:
-        return []
-
-    prompt = f"""Identify the key themes or topics discussed in the following summaries,
-                related to the query: '{query}'.
-                Summaries:
-{summaries}
+def extract_themes(combined_summaries: str, query: str, model_name: str = DEFAULT_LLM_MODEL) -> List[str]:
+    """Extract key themes from the summaries."""
+    prompt = f"""Based on the following search result summaries, identify the 5 most important themes that are relevant to the query '{query}'.
+    
+Search Result Summaries:
+{combined_summaries}
 
 Key Themes:"""
-    # Use subprocess to call the llm CLI
-    try:
-        result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        themes_text = result.stdout.strip()
-        themes = [theme.strip() for theme in themes_text.split("\n") if theme.strip()]
-        return themes
-    except subprocess.CalledProcessError as e:
-        logger.error(f"LLM command failed: {e}")
-        return [f"Error: LLM command failed: {e.stderr}"]
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while extracting themes: {e}")
-        return [f"Error: An unexpected error occurred: {str(e)}"]
+    
+    # Get the model
+    model = llm.get_model(model_name)
+    
+    # Create the prompt and get the response
+    response = model.prompt(prompt)
+    
+    # Process the response
+    themes_text = response.text()
+    themes = [theme.strip() for theme in themes_text.split("\n") if theme.strip()]
+    return themes
 
-@lru_cache(maxsize=100)
-def detect_contradictions(summaries: str) -> str:
-    """Detects potential contradictions or conflicting viewpoints in summaries."""
-    if not summaries:
-        return "No contradictions detected (not enough information)."
+def detect_contradictions(combined_summaries: str, model_name: str = DEFAULT_LLM_MODEL) -> str:
+    """Detect contradictions or conflicts in the search results."""
+    prompt = f"""Analyze the following search result summaries and identify any contradictions or conflicting information:
 
-    prompt = f"""Analyze the following summaries for any conflicting information,
-                contradictory statements, or differing viewpoints:
-                Summaries:
-{summaries}
+Search Result Summaries:
+{combined_summaries}
 
 Contradictions/Conflicts:"""
-    # Use subprocess to call the llm CLI
-    try:
-        result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        contradictions = result.stdout.strip()
-        return contradictions
-    except subprocess.CalledProcessError as e:
-        logger.error(f"LLM command failed: {e}")
-        return f"Error: LLM command failed: {e.stderr}"
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while detecting contradictions: {e}")
-        return f"Error: An unexpected error occurred: {str(e)}"
+    
+    # Get the model
+    model = llm.get_model(model_name)
+    
+    # Create the prompt and get the response
+    response = model.prompt(prompt)
+    
+    # Return the text of the response
+    return response.text()
 
-def generate_refined_queries(query: str, summaries: str, themes: List[str]) -> List[str]:
-    """Generates refined search queries based on the original query, summaries, and themes."""
-    if not summaries:
-        return [query]
+def generate_refined_queries(original_query: str, combined_summaries: str, themes: List[str], model_name: str = DEFAULT_LLM_MODEL) -> List[str]:
+    """Generate refined search queries based on the results."""
+    themes_str = "\n".join([f"- {theme}" for theme in themes])
+    prompt = f"""Based on the original query '{original_query}', the following search result summaries, and the key themes identified, 
+generate a list of refined search queries that would help to gather more specific and relevant information. Return ONLY a python list of strings:
 
-    prompt = f"""Based on the original query '{query}', the following summaries:
-{summaries}
-and the identified themes: {', '.join(themes)}.
+Original Query: {original_query}
+
+Search Result Summaries:
+{combined_summaries}
+
+Key Themes:
+{themes_str}
+
 Generate a list of refined search queries that would help to gather more specific and relevant information. Return ONLY a python list of strings:
 """
-     # Use subprocess to call the llm CLI
+    
+    # Get the model
+    model = llm.get_model(model_name)
+    
+    # Create the prompt and get the response
+    response = model.prompt(prompt)
+    
+    # Get the response text
+    refined_queries_text = response.text()
+    
+    # Attempt to parse the response as a Python list
     try:
-        result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        refined_queries_text = result.stdout.strip()
-        # Attempt to parse the response as a Python list
-        try:
-            refined_queries = eval(refined_queries_text)
-            if not isinstance(refined_queries, list):
-                raise ValueError("LLM did not return a list of strings.")
-            return refined_queries
-        except (SyntaxError, ValueError) as e:
-            logger.warning(f"Failed to parse refined queries. LLM response: {refined_queries_text}. Error: {e}")
-            return [query]
-    except subprocess.CalledProcessError as e:
-        logger.error(f"LLM command failed: {e}")
-        return [f"Error: LLM command failed: {e.stderr}"]
-    except Exception as e:
-        logger.exception(f"An unexpected error occurred while generating refined queries: {e}")
-        return [f"Error: An unexpected error occurred: {str(e)}"]
+        # Try to parse the result as a Python list using eval
+        refined_queries = eval(refined_queries_text.strip())
+        if not isinstance(refined_queries, list) or not all(isinstance(q, str) for q in refined_queries):
+            # Fallback to simple string parsing if the eval didn't return the expected format
+            refined_queries = [q.strip() for q in refined_queries_text.split("\n") if q.strip()]
+    except Exception:
+        # If parsing fails, split by newlines and clean up
+        refined_queries = [q.strip() for q in refined_queries_text.split("\n") if q.strip()]
+    
+    return refined_queries[:5]  # Limit to top 5 refined queries
 
-def create_overall_summary(summaries: str, query: str) -> str:
-    """Creates a comprehensive summary from individual summaries using an LLM."""
-    prompt = f"""Create a comprehensive summary based on the following individual summaries,
-                        addressing the query: '{query}'.
-                        Individual Summaries:
-{summaries}"""
+def rate_limit(limit_per_second: float):
+    """Rate limiting decorator."""
+    min_interval = 1.0 / limit_per_second
+    last_called = [0.0]
+    lock = threading.Lock()
+    
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with lock:
+                elapsed = time.time() - last_called[0]
+                if elapsed < min_interval:
+                    time.sleep(min_interval - elapsed)
+                result = func(*args, **kwargs)
+                last_called[0] = time.time()
+            return result
+        return wrapper
+    return decorator
+
+@rate_limit(GOOGLE_RATE_LIMIT)
+def google_search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[SearchResult]:
+    """Perform a Google Custom Search."""
+    if not GOOGLE_SEARCH_KEY or not GOOGLE_SEARCH_ID:
+        raise SearchError("Google Search API key or Search Engine ID not provided.")
+    
+    cache_key = _cache_key("google_search", query, num_results)
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        logger.info(f"Using cached Google search results for query: '{query}'")
+        return cached_result
+    
+    url = "https://www.googleapis.com/customsearch/v1"
+    params = {
+        "key": GOOGLE_SEARCH_KEY,
+        "cx": GOOGLE_SEARCH_ID,
+        "q": query,
+        "num": min(num_results, 10),  # Google API limit is 10 per request
+    }
+    
+    results = []
     try:
-        result = subprocess.run(
-            ["llm", "-m", DEFAULT_LLM_MODEL, prompt],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        logger.error(f"LLM command failed: {e}")
-        return f"Error: LLM command failed: {e.stderr}"
+        with httpx.Client(timeout=timeout) as client:
+            for start_index in range(1, min(num_results, MAX_RESULTS) + 1, 10):
+                params["start"] = start_index
+                response = client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                if "items" not in data:
+                    break
+                
+                for i, item in enumerate(data["items"]):
+                    results.append(SearchResult(
+                        url=item.get("link", ""),
+                        title=item.get("title", ""),
+                        snippet=item.get("snippet", ""),
+                        rank=start_index + i,
+                        source="google"
+                    ))
+                
+                if len(results) >= num_results:
+                    break
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Google Search API error: {e.response.status_code}")
+        raise SearchError(f"Google Search API error: {e.response.status_code}")
+    except httpx.RequestError as e:
+        logger.error(f"Google Search request error: {e}")
+        raise SearchError(f"Google Search request error: {e}")
     except Exception as e:
-        logger.exception(f"An unexpected error occurred while creating the overall summary: {e}")
-        return f"Error: An unexpected error occurred: {str(e)}"
+        logger.error(f"Unexpected error in Google Search: {e}")
+        raise SearchError(f"Unexpected error in Google Search: {e}")
+    
+    cache.set(cache_key, results, expire=CACHE_EXPIRATION.total_seconds())
+    return results[:num_results]
 
+@rate_limit(BING_RATE_LIMIT)
+def bing_search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[SearchResult]:
+    """Perform a Bing Custom Search."""
+    if not BING_CUSTOM_SEARCH_KEY:
+        raise SearchError("Bing Custom Search API key not provided.")
+    
+    cache_key = _cache_key("bing_search", query, num_results)
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        logger.info(f"Using cached Bing search results for query: '{query}'")
+        return cached_result
+    
+    url = f"https://{AZURE_REGION or 'api'}.cognitive.microsoft.com/bing/v7.0/search"
+    headers = {"Ocp-Apim-Subscription-Key": BING_CUSTOM_SEARCH_KEY}
+    params = {
+        "q": query,
+        "count": min(num_results, 50),  # Bing API limit
+        "responseFilter": "Webpages",
+    }
+    
+    if BING_CUSTOM_CONFIG_ID:
+        params["customConfig"] = BING_CUSTOM_CONFIG_ID
+    
+    results = []
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            if "webPages" in data and "value" in data["webPages"]:
+                for i, item in enumerate(data["webPages"]["value"]):
+                    results.append(SearchResult(
+                        url=item.get("url", ""),
+                        title=item.get("name", ""),
+                        snippet=item.get("snippet", ""),
+                        rank=i,
+                        source="bing"
+                    ))
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Bing Search API error: {e.response.status_code}")
+        raise SearchError(f"Bing Search API error: {e.response.status_code}")
+    except httpx.RequestError as e:
+        logger.error(f"Bing Search request error: {e}")
+        raise SearchError(f"Bing Search request error: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error in Bing Search: {e}")
+        raise SearchError(f"Unexpected error in Bing Search: {e}")
+    
+    cache.set(cache_key, results, expire=CACHE_EXPIRATION.total_seconds())
+    return results[:num_results]
+
+def search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[SearchResult]:
+    """Perform a combined search using multiple search engines."""
+    logger.info(f"Performing search for query: '{query}', num_results: {num_results}")
+    
+    all_results = []
+    errors = []
+    
+    # Try Google search
+    try:
+        google_results = google_search(query, num_results // 2 + num_results % 2, timeout)
+        all_results.extend(google_results)
+    except SearchError as e:
+        errors.append(f"Google search error: {str(e)}")
+        logger.warning(f"Google search failed: {e}. Continuing with other sources.")
+    
+    # Try Bing search
+    try:
+        bing_results = bing_search(query, num_results // 2, timeout)
+        all_results.extend(bing_results)
+    except SearchError as e:
+        errors.append(f"Bing search error: {str(e)}")
+        logger.warning(f"Bing search failed: {e}. Continuing with other sources.")
+    
+    # If all searches failed, provide mock results
+    if not all_results:
+        if errors:
+            logger.error(f"All search engines failed: {'; '.join(errors)}")
+        
+        logger.warning("Falling back to mock results")
+        for i in range(num_results):
+            all_results.append({
+                "url": f"https://example.com/result{i+1}",
+                "title": f"Mock Result {i+1} for '{query}'",
+                "snippet": f"This is a mock result because all search engines failed. Pretending to have information about {query}.",
+                "rank": i,
+                "source": "mock"
+            })
+    
+    # Sort by rank and limit to requested number
+    all_results.sort(key=lambda x: x.rank if hasattr(x, 'rank') else x["rank"])
+    return all_results[:num_results]
 
 def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS) -> Dict:
     """Performs a deep, iterative search using both Google and Bing, and analyzes the results."""
@@ -468,12 +406,20 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_themes = executor.submit(extract_themes, combined_summaries, current_query)
             future_contradictions = executor.submit(detect_contradictions, combined_summaries)
-            future_overall_summary = executor.submit(create_overall_summary, combined_summaries, current_query)  # Use the new function
+            
+            # Create an overall summary using the fixed API approach
+            model = llm.get_model(DEFAULT_LLM_MODEL)
+            future_overall_summary = executor.submit(
+                lambda: model.prompt(f"""Create a comprehensive summary based on the following individual summaries,
+                                    addressing the query: '{current_query}'.
+                                    Individual Summaries:
+{combined_summaries}""").text()
+            )
 
             themes = future_themes.result()
             contradictions = future_contradictions.result()
             overall_summary = future_overall_summary.result()
-
+        
         all_themes.extend(themes)
         all_contradictions.append(contradictions)
 
@@ -482,7 +428,7 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
             refined_queries = generate_refined_queries(current_query, combined_summaries, themes)
 
             if refined_queries:  # Select a query to use in the next iteration
-                next_query = refined_queries[0]
+              next_query = refined_queries[0]
 
             # Check if the new query is substantially different from the previous one
             if next_query.lower() == current_query.lower():
@@ -501,55 +447,82 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_to_theme = {
                 executor.submit(search, theme, num_results=3, timeout=timeout): theme
-                for theme in all_themes[:3]  # Limit the number of theme searches
+                for theme in all_themes[:3]  # Limit to top 3 themes
             }
             for future in as_completed(future_to_theme):
                 theme = future_to_theme[future]
                 try:
                     theme_results = future.result()
-                    all_iterative_results.extend([vars(r) for r in theme_results])
+                    all_iterative_results.extend([
+                        {"theme": theme, "url": result.url, "title": result.title, "snippet": result.snippet}
+                        for result in theme_results[:3]  # Limit to top 3 results per theme
+                    ])
                 except Exception as e:
-                    logger.error(f"Error during iterative search for theme '{theme}': {e}")
+                    logger.error(f"Error running search for theme '{theme}': {e}")
 
-    return {
+    # Perform final analysis - process overall findings
+    model = llm.get_model(DEFAULT_LLM_MODEL)
+    overall_analysis = model.prompt(f"""
+Given the search query: '{query}'
+And based on all the analyzed search results, provide a comprehensive analysis focusing on:
+1. Main findings
+2. Different perspectives identified
+3. Key areas for further exploration
+4. Most reliable sources and why
+5. Possible limitations in the search results
+
+Please synthesize the information thoughtfully to help the user understand the subject in depth.
+""").text()
+
+    # Prepare the final result object
+    final_result = {
         "query": query,
-        "results": [vars(r) for r in all_results],
+        "results": [{"url": r.url, "title": r.title, "summary": r.summary, "source": r.source} for r in all_results],
         "summary": overall_summary,
         "themes": all_themes,
         "contradictions": all_contradictions,
         "iterative_results": all_iterative_results,
-        "analysis": "Further analysis and refinement steps can be added here."
+        "analysis": overall_analysis
     }
 
+    return final_result
+
+# Plugin hook implementation using the correct decorator
 @llm.hookimpl
 def register_commands(cli):
-    @cli.group()
+    """Add websearch commands to the llm CLI."""
+    
+    @cli.group(name="websearch")
     def websearch():
-        """Web search commands using LLM"""
+        """Web search commands for llm."""
         pass
 
     @websearch.command(name="search")
-    @click.argument("query", type=str)
-    @click.option("-n", "--num-results", type=int, default=DEFAULT_NUM_RESULTS, help="Number of results")
-    @click.option("-t", "--timeout", type=float, default=30.0, help="Timeout in seconds")
-    @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
+    @click.argument("query")
+    @click.option("--num-results", "-n", default=DEFAULT_NUM_RESULTS, help="Number of search results to return")
+    @click.option("--timeout", "-t", default=30.0, help="Timeout for search requests in seconds")
+    @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
     def search_cmd(query, num_results, timeout, verbose):
-        """Performs a web search using Bing and Google, falling back to mock results."""
+        """Performs a web search using both Google and Bing."""
         if verbose:
             logging.getLogger().setLevel(logging.DEBUG)
-
         try:
             results = search(query, num_results, timeout)
-            click.echo(json.dumps([vars(r) for r in results], indent=2))
+            for i, result in enumerate(results, 1):
+                click.echo(f"{i}. {result.title}")
+                click.echo(f"   URL: {result.url}")
+                click.echo(f"   Snippet: {result.snippet}")
+                click.echo(f"   Source: {result.source}")
+                click.echo()
         except SearchError as e:
             click.echo(f"Error: {e}", err=True)
-
+    
     @websearch.command(name="deep-search")
-    @click.argument("query", type=str)
-    @click.option("-n", "--num-results", type=int, default=DEFAULT_NUM_RESULTS, help="Number of results")
-    @click.option("-t", "--timeout", type=float, default=30.0, help="Timeout in seconds")
-    @click.option("-i", "--iterations", type=int, default=MAX_ITERATIONS, help="Maximum number of search iterations")
-    @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
+    @click.argument("query")
+    @click.option("--num-results", "-n", default=DEFAULT_NUM_RESULTS, help="Number of search results to return")
+    @click.option("--timeout", "-t", default=30.0, help="Timeout for search requests in seconds")
+    @click.option("--iterations", "-i", default=MAX_ITERATIONS, help="Maximum number of iterative search rounds")
+    @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
     def deep_search_cmd(query, num_results, timeout, iterations, verbose):
         """Performs a deep search using both Google and Bing, and analyzes the results."""
         if verbose:
@@ -559,3 +532,5 @@ def register_commands(cli):
             click.echo(json.dumps(result, indent=2))
         except SearchError as e:
             click.echo(f"Error: {e}", err=True)
+
+    return websearch

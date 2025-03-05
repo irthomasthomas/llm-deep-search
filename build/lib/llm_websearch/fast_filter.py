@@ -18,7 +18,7 @@ class FastFilter:
     def __init__(self, 
                  threshold: float = 0.7,
                  max_workers: int = 4,
-                 lightweight_model: str = "cerebras-llama3.3-70b"):
+                 lightweight_model: str = "gemini-2.0-flash"): # Updated default
         self.threshold = threshold
         self.max_workers = max_workers
         self.model = lightweight_model

@@ -1,0 +1,12 @@
+This is a sample test file for the LLM Deep Search plugin.
+
+The file contains some example text that can be used for testing purposes.
+
+Key features of LLM Deep Search:
+- Web searching using Google and Bing
+- Fetching and summarizing content from search results
+- Extracting themes from search results
+- Detecting contradictions in search results
+- Generating refined search queries
+
+This file was created as a simple example.

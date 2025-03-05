@@ -21,7 +21,7 @@ class ModelConfig:
     tier: ModelTier
     max_tokens: int
     typical_latency: float
-    cost_per_token: float
+    cost_per_token: float  # Keeping this, even though it's 0 in the screenshots
     capabilities: List[str]
     supports_batch: bool = False
     context_window: int = 4096
@@ -47,38 +47,55 @@ class LLMIntegration:
                  cache_instance = None):
         """Initialize LLM integration"""
         self.primary_models = primary_models or [
-            "gemini-2",
             "gemini-2.0-pro-exp-02-05",
-            "groq/llama-3.3-70b-versatile"
+            "gemini-2.0-flash-thinking-exp-01-21"
         ]
         
         self.fallback_models = fallback_models or [
-            "anthropic/claude-3-sonnet-20240229",
-            "google/gemini-pro",
-            "meta/llama-2-70b-chat"
+            "gemini-2.0-flash-exp",
+            "gemini-2.0-flash"
         ]
         
         # Initialize with default model configs
         self.model_configs = {
-            "gemini-2.0-flash": ModelConfig(
-                name="gemini-2",
-                tier=ModelTier.PREMIUM,
-                max_tokens=1000000,
-                typical_latency=2.0,
-                cost_per_token=0.0000001,
-                capabilities=["code", "reasoning", "summarization"],
-                supports_batch=True,
-                context_window=1000000
-            ),
             "gemini-2.0-pro-exp-02-05": ModelConfig(
                 name="gemini-2.0-pro-exp-02-05",
                 tier=ModelTier.PREMIUM,
-                max_tokens=1000000,
+                max_tokens=128000,  # Example - adjust as needed
                 typical_latency=2.5,
-                cost_per_token=0.00010,
-                capabilities=["code", "reasoning", "analysis"],
+                cost_per_token=0.00,  # Updated from screenshots
+                capabilities=["multimodal", "streaming", "tool_use", "code"], # Based on screenshot
                 supports_batch=True,
-                context_window=1000000
+                context_window=128000
+            ),
+            "gemini-2.0-flash-thinking-exp-01-21": ModelConfig(
+                name="gemini-2.0-flash-thinking-exp-01-21",
+                tier=ModelTier.STANDARD,
+                max_tokens=128000, # Example
+                typical_latency=1.5,
+                cost_per_token=0.00, # Updated
+                capabilities=["multimodal", "reasoning", "coding"], # Based on screenshot
+                supports_batch=False,
+                context_window=128000
+            ),
+            "gemini-2.0-flash-exp": ModelConfig(
+                name="gemini-2.0-flash-exp",
+                tier=ModelTier.FAST,
+                max_tokens=128000,  # Example
+                typical_latency=0.5,
+                cost_per_token=0.00,  # Updated
+                capabilities=["multimodal", "tool_use", "text_and_images"], # Based on screenshot
+                supports_batch=False,
+                context_window=128000),
+            "gemini-2.0-flash": ModelConfig(
+                name="gemini-2.0-flash",
+                tier=ModelTier.FAST,
+                max_tokens=128000, # Example
+                typical_latency = 0.5,
+                cost_per_token=0.10, #Updated from screenshot
+                capabilities=["multimodal", "streaming", "tool_use"], #Based on screenshot
+                supports_batch=False,
+                context_window=128000
             )
         }
         
@@ -128,7 +145,7 @@ class LLMIntegration:
                 stats["requests"] = 0
                 stats["last_reset"] = now
             
-            # Check rate limits
+            # Check rate limits -  PLACEHOLDER LIMITS!
             if stats["requests"] >= 50:  # Example limit
                 time.sleep(1)  # Basic backoff
             

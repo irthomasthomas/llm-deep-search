@@ -1,3 +1,4 @@
+# llm_websearch/detailed_analysis.py
 """Detailed content analysis module for Tier 2 processing."""
 
 from dataclasses import dataclass
@@ -32,7 +33,7 @@ class DetailedAnalyzer:
     def __init__(self,
                  relevance_threshold: float = 0.7,
                  max_workers: int = 4,
-                 analysis_model: str = "gemini-2.0-pro-exp-02-05"):
+                 analysis_model: str = "gemini-2.0-pro-exp-02-05"): # Updated default
         self.relevance_threshold = relevance_threshold
         self.max_workers = max_workers
         self.model = analysis_model

@@ -505,7 +505,7 @@ def register_commands(cli):
     def search_cmd(query, num_results, timeout, verbose):
         """Performs a web search using both Google and Bing."""
         if verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
+            logging.getLogger().setLevel(logging.DEBUG) 
         try:
             results = search(query, num_results, timeout)
             for i, result in enumerate(results, 1):

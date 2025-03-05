@@ -1,0 +1,38 @@
+graph TD
+    A[User Query] --> B[DeepResearcher]
+    B --> C{Recursive Research Loop}
+    
+    subgraph DeepResearcher
+        C --> D[Generate Subqueries]
+        D --> E[Analyze Path Relevance]
+        E --> F[Explore Queries]
+        F --> G[Check Timeout]
+        G --> C
+        F --> H[Extract Key Findings]
+        F --> I[Gather Evidence]
+    end
+    
+    H --> J[ResearchResult]
+    I --> J
+    
+    subgraph Data Models
+        K[SearchPath]
+        L[ResearchContext]
+        M[ResearchResult]
+    end
+    
+    subgraph QueryExpander
+        N[Generate Semantic Variants]
+        O[Generate Syntactic Variants]
+        P[Generate Contextual Variants]
+        Q[Filter Variants]
+    end
+    
+    A --> N
+    N --> R[ExpansionResult]
+    O --> R
+    P --> R
+
+    style DeepResearcher fill:#f9f,stroke:#333,stroke-width:2px
+    style QueryExpander fill:#bbf,stroke:#333,stroke-width:2px
+    style Data Models fill:#bfb,stroke:#333,stroke-width:2px
