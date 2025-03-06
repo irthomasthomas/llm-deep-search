@@ -1,87 +1,94 @@
-# llm-websearch Plugin
+# LLM Web Search Plugin with Token Optimization
 
-The `llm-websearch` plugin is an advanced web search tool for the `llm` CLI that leverages the power of large language models (LLMs) to perform sophisticated web searches, content analysis, and summarization.
+A plugin for the [LLM](https://github.com/simonw/llm) tool that provides web search capabilities with token-optimized outputs.
 
 ## Features
 
-- Web search using both Google and Bing APIs
-- Fallback to mock results if API calls fail
-- Deep search functionality with content fetching and LLM-based summarization
-- Sophisticated iterative search capabilities with dynamic query refinement
-- Key theme extraction and contradiction detection in search results
-- Caching of search results and summaries for improved performance
-- Rate limiting to comply with API usage restrictions
-- Comprehensive error handling and logging
+- Basic web search using Google and Bing APIs
+- Deep research with recursive query exploration and analysis
+- Token-optimized output formats for efficient LLM consumption
+- Caching system for faster repeated searches
+- Rate limiting to comply with API usage requirements
 
 ## Installation
 
-To install the `llm-websearch` plugin, use the following command:
-
-```
+```bash
 pip install llm-websearch
 ```
 
 ## Configuration
 
-The plugin requires API keys for Google and Bing search APIs. Set the following environment variables:
+Create a `.env` file with your API keys:
 
-- `GOOGLE_SEARCH_KEY`: Your Google Custom Search API key
-- `GOOGLE_SEARCH_ID`: Your Google Custom Search Engine ID
-- `BING_SEARCH_API_KEY` or `BING_SUBSCRIPTION_KEY`: Your Bing Web Search API key
+```
+GOOGLE_SEARCH_KEY=your_google_api_key
+GOOGLE_SEARCH_ID=your_google_search_engine_id
+BING_CUSTOM_SEARCH_KEY=your_bing_api_key
+BING_CUSTOM_CONFIG_ID=your_bing_config_id
+```
 
-You can set these in a `.env` file in your project directory or export them in your shell.
+## Token Optimization
+
+This plugin implements a tiered result formatting system that dramatically reduces token usage while preserving key information:
+
+| Format | Token Usage | Savings vs FULL |
+|--------|-------------|-----------------|
+| COMPACT | ~120 tokens | 80.6% |
+| SUMMARY | ~221 tokens | 64.3% |
+| FULL | ~619 tokens | 0% |
 
 ## Usage
 
-After installation, the plugin will be available in the `llm` CLI. You can use it as follows:
-
 ### Basic Search
 
-```
-llm websearch search "your search query" [OPTIONS]
-```
-
-Options:
-- `-n, --num-results`: Number of results to return (default: 10)
-- `-t, --timeout`: Timeout for API requests in seconds (default: 30.0)
-- `-v, --verbose`: Enable verbose logging
-
-### Deep Search
-
-```
-llm websearch deep-search "your search query" [OPTIONS]
+```bash
+llm websearch search "neural networks"
 ```
 
-Options:
-- `-n, --num-results`: Number of results to return (default: 10)
-- `-t, --timeout`: Timeout for API requests in seconds (default: 30.0)
-- `-i, --iterations`: Maximum number of search iterations (default: 3)
-- `-v, --verbose`: Enable verbose logging
+### Deep Search with Token Optimization
 
-## Examples
-
-Basic search:
-```
-llm websearch search "Python programming best practices"
+```bash
+llm websearch deep-search "neural networks" --format-type compact
 ```
 
-Deep search:
+Available formats:
+- `compact`: Minimal representation (approx. 120 tokens)
+- `summary`: Moderate detail (approx. 221 tokens)
+- `full`: Complete representation (approx. 619 tokens)
+
+### Python API
+
+```python
+from llm_websearch import deep_search
+
+# Get compact results
+result = deep_search("neural networks", format_type="compact")
 ```
-llm websearch deep-search "Impact of artificial intelligence on job market" -n 20 -i 5
+
+## Progressive Loading
+
+You can start with a compact format and load additional details only when needed:
+
+```python
+# Start with compact format
+result = deep_search("neural networks", format_type="compact")
+
+# Load details for specific finding when needed
+finding_details = get_finding_details(result, finding_idx=0)
 ```
 
-## Development
+## Demo Scripts
 
-To set up the development environment:
+The package includes several demo scripts to help you understand the token optimization features:
 
-1. Clone the repository
-2. Install dependencies: `pip install -e ".[test]"`
-3. Run tests: `pytest`
+- `token_optimization_demo.py`: Demonstrates the different format types
+- `token_optimization_viz.py`: Creates a visualization of token savings
 
-## Contributing
+## Documentation
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+For more details on the token optimization system, see:
+- [TOKEN_OPTIMIZATION.md](TOKEN_OPTIMIZATION.md): Detailed explanation of the token optimization system
 
 ## License
 
-This project is licensed under the MIT License.
+MIT
