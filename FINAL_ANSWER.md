@@ -13,7 +13,7 @@ Content:
   key_conclusions: ['Neural networks are computational models inspired by the human brain.', 'Most neural networks include input, hidden, and output layers.', 'Neural networks are widely used in image recognition, NLP, and recommendation systems.', 'Deep neural networks contain multiple hidden layers that extract hierarchical features.', 'Neural networks help in medical image analysis and disease prediction.']
   confidence: 0.87
   sources_count: 5
-
+k
 ============================================================
   SUMMARY FORMAT (Moderate Tokens)
 ============================================================
@@ -123,25 +123,3 @@ I recommend implementing the following improvements to the deep-research feature
 - Add progress reporting for long-running research
 - Create a natural language interface for research goals
 - Implement interactive filtering of results
-
-## Implementation Strategy with VS Code Copilot
-
-To implement these improvements efficiently with VS Code Copilot:
-
-1. Use vs code copilot for initial code generation:
-   - Create base classes with Copilot using specific prompts
-   - Review and refine the generated code
-   - Iterate with feedback
-
-2. For each major feature, follow this workflow:
-   - Use screenshot to check the status of vs code and the copilot sidebar
-   - If not open already, open Copilot with Ctrl+Alt+B
-   - Provide a detailed prompt following the template from copilot.md
-   - Review the suggestions and refine with Ctrl+Alt+H
-   - Test the implementation incrementally
-
-3. Prioritize implementation in this order:
-   - Tiered formatting system (already demonstrated)
-   - Vector embedding integration for relevance scoring
-   - Caching and progressive loading
-   - Enhanced query expansion with LLM guidance
