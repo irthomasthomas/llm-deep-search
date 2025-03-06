@@ -23,7 +23,7 @@ A plugin for the [LLM](https://github.com/simonw/llm) tool that provides web sea
 ## Features
 
 - Basic web search using Google and Bing APIs
-- Deep search with recursive query exploration and analysis
+- Deep research with recursive query exploration and analysis
 - Token-optimized output formats for efficient LLM consumption
 - Caching system for faster repeated searches
 - Rate limiting to comply with API usage requirements
@@ -45,6 +45,16 @@ BING_CUSTOM_SEARCH_KEY=your_bing_api_key
 BING_CUSTOM_CONFIG_ID=your_bing_config_id
 ```
 
+## Token Optimization
+
+This plugin implements a tiered result formatting system that dramatically reduces token usage while preserving key information:
+
+| Format | Token Usage | Savings vs FULL |
+|--------|-------------|-----------------|
+| COMPACT | ~120 tokens | 80.6% |
+| SUMMARY | ~221 tokens | 64.3% |
+| FULL | ~619 tokens | 0% |
+
 ## Usage
 
 ### Basic Search
@@ -56,7 +66,7 @@ llm websearch search "neural networks"
 ### Deep Search with Token Optimization
 
 ```bash
-llm websearch deep-search "neural networks" --format compact
+llm websearch deep-search "neural networks" --format-type compact
 ```
 
 Available formats:
@@ -64,27 +74,38 @@ Available formats:
 - `summary`: Moderate detail (approx. 221 tokens)
 - `full`: Complete representation (approx. 619 tokens)
 
-## Token Optimization
+### Python API
 
-This plugin implements a tiered result formatting system that dramatically reduces token usage while preserving key information:
+```python
+from llm_websearch import deep_search
 
-| Format | Token Usage | Savings vs FULL |
-|--------|-------------|-----------------|
-| COMPACT | ~120 tokens | 80.6% |
-| SUMMARY | ~221 tokens | 64.3% |
-| FULL | ~619 tokens | 0% |
+# Get compact results
+result = deep_search("neural networks", format_type="compact")
+```
 
-### Progressive Loading
+## Progressive Loading
 
 You can start with a compact format and load additional details only when needed:
 
 ```python
 # Start with compact format
-result = deep_search("neural networks", format="compact")
+result = deep_search("neural networks", format_type="compact")
 
 # Load details for specific finding when needed
 finding_details = get_finding_details(result, finding_idx=0)
 ```
+
+## Demo Scripts
+
+The package includes several demo scripts to help you understand the token optimization features:
+
+- `token_optimization_demo.py`: Demonstrates the different format types
+- `token_optimization_viz.py`: Creates a visualization of token savings
+
+## Documentation
+
+For more details on the token optimization system, see:
+- [TOKEN_OPTIMIZATION.md](TOKEN_OPTIMIZATION.md): Detailed explanation of the token optimization system
 
 ## License
 

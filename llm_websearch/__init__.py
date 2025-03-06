@@ -402,18 +402,22 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
     """
     logger.info(f"Performing deep search for query: '{query}', num_results: {num_results}, format: {format_type}")
 
-    # Initialize DeepResearcher
+    # Define a search function that will be used by DeepResearcher
+    def search_function(search_query):
+        return search(search_query, num_results=num_results, timeout=timeout)
+
+    # Initialize DeepResearcher with the actual search function
     researcher = DeepResearcher(
+        search_function=search_function,
         max_depth=max_iterations,
         relevance_threshold=0.7,
         max_workers=4,
         timeout=timeout
     )
     
-    # Run the deep research
+    # Run the deep research with actual search
     try:
-        # For the POC, we're simulating the deep research
-        # In a real implementation, this would call the actual API search functions
+        # Perform the actual research using the search function
         research_result = researcher.research(query)
         
         # Format the results based on requested format type
@@ -435,13 +439,13 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
         formatter = ResearchResultFormatter(format_type=format_type_enum, options=options)
         formatted_result = formatter.format_result(research_result)
         
-        # Add token usage information
-        token_usage = {
-            "compact": 120,
-            "summary": 221,
-            "full": 619
+        # Calculate and add token usage information
+        token_counts = {
+            FormatType.COMPACT: len(str(formatted_result)) // 4,  # Approximate token count
+            FormatType.SUMMARY: len(str(formatted_result)) // 4,
+            FormatType.FULL: len(str(formatted_result)) // 4
         }
-        formatted_result["token_usage"] = token_usage.get(format_type.lower(), "unknown")
+        formatted_result["token_usage"] = token_counts[format_type_enum]
         
         return formatted_result
         

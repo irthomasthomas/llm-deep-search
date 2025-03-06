@@ -1,5 +1,3 @@
-- [ ] Try to write commands which include multiple commands, or a small loop, if it makes sense, of course.
-- [ ] You have access to a number of new tools which I'd like you to try out and remember your experience with. ttok is a terminal tool for estimating token count. This test was conducted in your current environment.
 - [ ] llm cartographer maps a dir or codebase. Here are the various commands you could use to explore a dir or project:
 ```bash
 ls | ttok

@@ -14,6 +14,21 @@ from bs4 import BeautifulSoup
 import time
 import threading
 from functools import wraps, lru_cache
+import importlib
+import sys
+
+# Force reload to ensure we have the latest version
+current_module = sys.modules[__name__]
+importlib.reload(current_module)
+
+# Import the components for deep research and token optimization
+try:
+    from .deep_research import DeepResearcher, ResearchResult
+    from .result_formatter import ResearchResultFormatter, FormatType, FormatOptions
+except ImportError:
+    # Fallback for development/testing
+    from deep_research import DeepResearcher, ResearchResult
+    from result_formatter import ResearchResultFormatter, FormatType, FormatOptions
 
 load_dotenv()
 
@@ -359,140 +374,92 @@ def search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[Sea
         
         logger.warning("Falling back to mock results")
         for i in range(num_results):
-            all_results.append({
-                "url": f"https://example.com/result{i+1}",
-                "title": f"Mock Result {i+1} for '{query}'",
-                "snippet": f"This is a mock result because all search engines failed. Pretending to have information about {query}.",
-                "rank": i,
-                "source": "mock"
-            })
+            all_results.append(SearchResult(
+                url=f"https://example.com/result{i+1}",
+                title=f"Mock Result {i+1} for '{query}'",
+                snippet=f"This is a mock result because all search engines failed. Pretending to have information about {query}.",
+                rank=i,
+                source="mock"
+            ))
     
     # Sort by rank and limit to requested number
-    all_results.sort(key=lambda x: x.rank if hasattr(x, 'rank') else x["rank"])
+    all_results.sort(key=lambda x: x.rank)
     return all_results[:num_results]
 
-def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS) -> Dict:
-    """Performs a deep, iterative search using both Google and Bing, and analyzes the results."""
-    logger.info(f"Performing deep search for query: '{query}', num_results: {num_results}, timeout: {timeout}, max_iterations: {max_iterations}")
-
-    all_results = []
-    all_summaries = []
-    all_themes = []
-    all_contradictions = []
-    all_iterative_results = []
-
-    current_query = query
-
-    for iteration in range(max_iterations):
-        logger.info(f"Starting iteration {iteration + 1} for query: '{current_query}'")
-        search_results = search(current_query, num_results, timeout)
-
-        with ThreadPoolExecutor(max_workers=min(10, num_results)) as executor:
-            future_to_url = {executor.submit(fetch_and_summarize, result.url, current_query, timeout): result for result in search_results}
-            processed_results = []
-            for future in as_completed(future_to_url):
-                result = future_to_url[future]
-                try:
-                    summary = future.result()
-                    processed_results.append(ProcessedResult(url=result.url, title=result.title, summary=summary, source=result.source))
-                    all_summaries.append(summary)
-                except Exception as e:
-                    logger.error(f"Error processing {result.url}: {e}")
-
-        all_results.extend(processed_results)
-
-        # Extract summaries and perform analysis
-        combined_summaries = " ".join(f"{res.title} ({res.url}):{res.summary}" for res in processed_results)
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            future_themes = executor.submit(extract_themes, combined_summaries, current_query)
-            future_contradictions = executor.submit(detect_contradictions, combined_summaries)
-            
-            # Create an overall summary using the fixed API approach
-            model = llm.get_model(DEFAULT_LLM_MODEL)
-            future_overall_summary = executor.submit(
-                lambda: model.prompt(f"""Create a comprehensive summary based on the following individual summaries,
-                                    addressing the query: '{current_query}'.
-                                    Individual Summaries:
-{combined_summaries}""").text()
-            )
-
-            themes = future_themes.result()
-            contradictions = future_contradictions.result()
-            overall_summary = future_overall_summary.result()
-        
-        all_themes.extend(themes)
-        all_contradictions.append(contradictions)
-
-
-        if iteration < max_iterations - 1:  # Generate refined queries for next iteration, except the last one
-            refined_queries = generate_refined_queries(current_query, combined_summaries, themes)
-
-            if refined_queries:  # Select a query to use in the next iteration
-              next_query = refined_queries[0]
-
-            # Check if the new query is substantially different from the previous one
-            if next_query.lower() == current_query.lower():
-                logger.info("Refined query is the same as the previous one. Stopping iterations.")
-                break  # Stop if the query is not changing
-
-            logger.info(f"Refined query for next iteration: {next_query}")
-            current_query = next_query
-        else:  # Last iteration
-            logger.info(f"Reached max_iterations ({max_iterations}). Finishing deep search.")
-
-
-    # Basic iterative search: Use themes as new search queries
-    if all_themes:
-        logger.info(f"Performing final iterative search based on themes: {all_themes}")
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_theme = {
-                executor.submit(search, theme, num_results=3, timeout=timeout): theme
-                for theme in all_themes[:3]  # Limit to top 3 themes
-            }
-            for future in as_completed(future_to_theme):
-                theme = future_to_theme[future]
-                try:
-                    theme_results = future.result()
-                    all_iterative_results.extend([
-                        {"theme": theme, "url": result.url, "title": result.title, "snippet": result.snippet}
-                        for result in theme_results[:3]  # Limit to top 3 results per theme
-                    ])
-                except Exception as e:
-                    logger.error(f"Error running search for theme '{theme}': {e}")
-
-    # Perform final analysis - process overall findings
-    model = llm.get_model(DEFAULT_LLM_MODEL)
-    overall_analysis = model.prompt(f"""
-Given the search query: '{query}'
-And based on all the analyzed search results, provide a comprehensive analysis focusing on:
-1. Main findings
-2. Different perspectives identified
-3. Key areas for further exploration
-4. Most reliable sources and why
-5. Possible limitations in the search results
-
-Please synthesize the information thoughtfully to help the user understand the subject in depth.
-""").text()
-
-    # Prepare the final result object
-    final_result = {
-        "query": query,
-        "results": [{"url": r.url, "title": r.title, "summary": r.summary, "source": r.source} for r in all_results],
-        "summary": overall_summary,
-        "themes": all_themes,
-        "contradictions": all_contradictions,
-        "iterative_results": all_iterative_results,
-        "analysis": overall_analysis
-    }
-
-    return final_result
-
-# Plugin hook implementation using the correct decorator
-@llm.hookimpl
-def register_commands(cli):
-    """Add websearch commands to the llm CLI."""
+def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS, format_type: str = "summary") -> Dict:
+    """
+    Performs a deep, iterative search using both Google and Bing, and analyzes the results.
     
-    @cli.group(name="websearch")
+    Args:
+        query: The search query
+        num_results: Number of results to fetch
+        timeout: Timeout for each request in seconds
+        max_iterations: Maximum number of iterative search rounds
+        format_type: The output format type (compact, summary, full)
+    
+    Returns:
+        A dictionary with the formatted research results
+    """
+    logger.info(f"Performing deep search for query: '{query}', num_results: {num_results}, format: {format_type}")
+
+    # Define a search function that will be used by DeepResearcher
+    def search_function(search_query):
+        return search(search_query, num_results=num_results, timeout=timeout)
+
+    # Initialize DeepResearcher with the actual search function
+    researcher = DeepResearcher(
+        search_function=search_function,
+        max_depth=max_iterations,
+        relevance_threshold=0.7,
+        max_workers=4,
+        timeout=timeout
+    )
+    
+    # Run the deep research with actual search
+    try:
+        # Perform the actual research using the search function
+        research_result = researcher.research(query)
+        
+        # Format the results based on requested format type
+        format_type_enum = FormatType.SUMMARY  # Default
+        if format_type.lower() == "compact":
+            format_type_enum = FormatType.COMPACT
+        elif format_type.lower() == "full":
+            format_type_enum = FormatType.FULL
+            
+        # Create format options
+        options = FormatOptions(
+            include_metadata=True,
+            max_findings=None,
+            confidence_threshold=0.6,
+            include_exploration_paths=(format_type_enum == FormatType.FULL)
+        )
+        
+        # Format the results
+        formatter = ResearchResultFormatter(format_type=format_type_enum, options=options)
+        formatted_result = formatter.format_result(research_result)
+        
+        # Calculate and add token usage information
+        token_counts = {
+            FormatType.COMPACT: len(str(formatted_result)) // 4,  # Approximate token count
+            FormatType.SUMMARY: len(str(formatted_result)) // 4,
+            FormatType.FULL: len(str(formatted_result)) // 4
+        }
+        formatted_result["token_usage"] = token_counts[format_type_enum]
+        
+        return formatted_result
+        
+    except Exception as e:
+        logger.error(f"Error during deep research: {e}")
+        return {
+            "error": str(e),
+            "query": query
+        }
+
+def get_websearch_commands():
+    """Define the websearch commands and return them."""
+    
+    @click.group()
     def websearch():
         """Web search commands for llm."""
         pass
@@ -522,15 +489,25 @@ def register_commands(cli):
     @click.option("--num-results", "-n", default=DEFAULT_NUM_RESULTS, help="Number of search results to return")
     @click.option("--timeout", "-t", default=30.0, help="Timeout for search requests in seconds")
     @click.option("--iterations", "-i", default=MAX_ITERATIONS, help="Maximum number of iterative search rounds")
+    @click.option("--format-type", "-f", type=click.Choice(['compact', 'summary', 'full'], case_sensitive=False), 
+                  default='summary', help="Output format to optimize tokens")
     @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-    def deep_search_cmd(query, num_results, timeout, iterations, verbose):
-        """Performs a deep search using both Google and Bing, and analyzes the results."""
+    def deep_search_cmd(query, num_results, timeout, iterations, format_type, verbose):
+        """Performs a deep search with token-optimized results."""
         if verbose:
             logging.getLogger().setLevel(logging.DEBUG)
         try:
-            result = deep_search(query, num_results, timeout, iterations)
+            result = deep_search(query, num_results, timeout, iterations, format_type)
             click.echo(json.dumps(result, indent=2))
-        except SearchError as e:
+        except Exception as e:
             click.echo(f"Error: {e}", err=True)
 
+    return websearch
+
+# Plugin hook implementation
+@llm.hookimpl
+def register_commands(cli):
+    """Add websearch commands to the llm CLI."""
+    websearch = get_websearch_commands()
+    cli.add_command(websearch)
     return websearch
