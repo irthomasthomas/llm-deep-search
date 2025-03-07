@@ -1,10 +1,13 @@
 """Deep Research module for advanced recursive search capabilities."""
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Any
 import concurrent.futures
 import time
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class SearchPath:
@@ -28,6 +31,7 @@ class ResearchContext:
 @dataclass
 class ResearchResult:
     """Contains results from deep research"""
+    query: str  # Original query
     query_tree: Dict[str, List[str]]
     key_findings: List[Dict]
     evidence: List[Dict]
@@ -39,14 +43,35 @@ class DeepResearcher:
     """Advanced recursive search system"""
     
     def __init__(self,
+                 search_function: Any,
                  max_depth: int = 3,
                  relevance_threshold: float = 0.7,
                  max_workers: int = 4,
-                 timeout: float = 300.0):
+                 timeout: float = 300.0,
+                 generate_subqueries_function: Optional[Any] = None,
+                 analyze_relevance_function: Optional[Any] = None,
+                 extract_findings_function: Optional[Any] = None):
+        """
+        Initialize the DeepResearcher.
+        
+        Args:
+            search_function: Function to perform web searches
+            max_depth: Maximum depth for recursive exploration
+            relevance_threshold: Minimum relevance score to continue exploration
+            max_workers: Maximum number of concurrent workers
+            timeout: Research timeout in seconds
+            generate_subqueries_function: Optional custom function to generate subqueries
+            analyze_relevance_function: Optional custom function to analyze relevance
+            extract_findings_function: Optional custom function to extract findings
+        """
+        self.search_function = search_function
         self.max_depth = max_depth
         self.relevance_threshold = relevance_threshold
         self.max_workers = max_workers
         self.timeout = timeout
+        self.generate_subqueries_function = generate_subqueries_function
+        self.analyze_relevance_function = analyze_relevance_function
+        self.extract_findings_function = extract_findings_function
     
     def _check_timeout(self, context: ResearchContext) -> None:
         """Check if research has exceeded timeout"""
@@ -54,22 +79,53 @@ class DeepResearcher:
         if elapsed > context.timeout:
             raise TimeoutError("Deep research timeout exceeded")
     
-    def _generate_subqueries(self, query: str, context: ResearchContext) -> List[str]:
+    def _generate_subqueries(self, query: str, context: ResearchContext, search_results: List[Dict]) -> List[str]:
         """Generate relevant subqueries based on initial results"""
         self._check_timeout(context)  # Add timeout check
         
         if query in context.explored_queries:
             return []
+        
+        # If custom function provided, use it
+        if self.generate_subqueries_function:
+            return self.generate_subqueries_function(query, search_results)
             
-        # Simulate some work
-        time.sleep(0.01)
-            
-        subqueries = [
-            f"{query} detailed analysis",
-            f"{query} advanced techniques",
-            f"{query} best practices"
-        ]
-        return [q for q in subqueries if q not in context.explored_queries]
+        # Default implementation: extract potential subqueries from search results
+        subqueries = []
+        
+        # Extract key phrases from search result snippets
+        key_phrases = set()
+        for result in search_results:
+            # Simple extraction of potential key phrases from snippet
+            if hasattr(result, 'snippet'):
+                snippet = result.snippet if hasattr(result, "snippet") else result["snippet"]
+                # Split by common delimiters and filter reasonable length phrases
+                for delim in ['.', ',', ';', ':', '(', ')', '[', ']']:
+                    phrases = [p.strip() for p in snippet.split(delim)]
+                    phrases = [p for p in phrases if 3 <= len(p.split()) <= 7]  # Reasonable phrase length
+                    key_phrases.update(phrases)
+        
+        # Combine with original query to create subqueries
+        for phrase in key_phrases:
+            if len(phrase.split()) >= 2:  # Only use phrases with at least 2 words
+                subquery = f"{query} {phrase}"
+                if subquery not in context.explored_queries:
+                    subqueries.append(subquery)
+        
+        # Add some standard variations if we don't have enough
+        if len(subqueries) < 3:
+            variations = [
+                f"{query} benefits",
+                f"{query} problems",
+                f"{query} examples",
+                f"{query} latest developments",
+                f"{query} analysis"
+            ]
+            for variation in variations:
+                if variation not in context.explored_queries and variation not in subqueries:
+                    subqueries.append(variation)
+        
+        return subqueries[:5]  # Limit to top 5 subqueries
     
     def _analyze_path_relevance(self, 
                               current_query: str,
@@ -78,13 +134,29 @@ class DeepResearcher:
         """Analyze relevance of current search path"""
         self._check_timeout(context)  # Add timeout check
         
-        # Simulate some work
-        time.sleep(0.01)
+        # If custom function provided, use it
+        if self.analyze_relevance_function:
+            return self.analyze_relevance_function(current_query, parent_query)
         
+        # Default implementation: analyze term overlap
+        if not parent_query:
+            return 1.0  # Root query is always fully relevant
+            
         if current_query.startswith(parent_query):
-            return 0.9
-        common_terms = set(current_query.split()) & set(parent_query.split())
-        return len(common_terms) / len(set(parent_query.split())) if parent_query else 1.0
+            return 0.9  # High relevance if current is an extension of parent
+            
+        # Calculate term overlap
+        parent_terms = set(parent_query.lower().split())
+        current_terms = set(current_query.lower().split())
+        
+        if not parent_terms:
+            return 0.5  # Default mid-range relevance if parent has no terms
+            
+        # Jaccard similarity between term sets
+        intersection = parent_terms.intersection(current_terms)
+        union = parent_terms.union(current_terms)
+        
+        return len(intersection) / len(union) if union else 0.0
     
     def _explore_query(self,
                       query: str,
@@ -97,14 +169,22 @@ class DeepResearcher:
         if depth >= context.max_depth or query in context.explored_queries:
             return []
         
-        # Simulate some work
-        time.sleep(0.01)
+        logger.info(f"Exploring query at depth {depth}: {query}")
         
         context.explored_queries.add(query)
         relevance = self._analyze_path_relevance(query, parent_query or "", context)
         
         if relevance < self.relevance_threshold:
+            logger.info(f"Query relevance {relevance:.2f} below threshold {self.relevance_threshold}, stopping exploration")
             return []
+        
+        # Perform actual search for this query
+        try:
+            search_results = self.search_function(query)
+            logger.info(f"Found {len(search_results)} results for query: {query}")
+        except Exception as e:
+            logger.error(f"Search failed for query '{query}': {str(e)}")
+            search_results = []
         
         current_path = SearchPath(
             query=query,
@@ -115,67 +195,100 @@ class DeepResearcher:
         )
         
         paths = [current_path]
-        subqueries = self._generate_subqueries(query, context)
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_query = {
-                executor.submit(self._explore_query, sq, context, query, depth + 1): sq
-                for sq in subqueries
-            }
+        # Generate subqueries only if we're not at max depth
+        if depth < context.max_depth - 1:
+            subqueries = self._generate_subqueries(query, context, search_results)
+            logger.info(f"Generated {len(subqueries)} subqueries for: {query}")
             
-            for future in concurrent.futures.as_completed(future_to_query):
-                self._check_timeout(context)  # Check timeout during parallel execution
-                try:
-                    paths.extend(future.result())
-                except TimeoutError:
-                    # Cancel remaining futures and propagate the timeout
-                    for f in future_to_query:
-                        f.cancel()
-                    raise
-                except Exception as e:
-                    print(f"Error exploring query: {str(e)}")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                future_to_query = {
+                    executor.submit(self._explore_query, sq, context, query, depth + 1): sq
+                    for sq in subqueries
+                }
+                
+                for future in concurrent.futures.as_completed(future_to_query):
+                    self._check_timeout(context)  # Check timeout during parallel execution
+                    try:
+                        paths.extend(future.result())
+                    except TimeoutError:
+                        # Cancel remaining futures and propagate the timeout
+                        for f in future_to_query:
+                            f.cancel()
+                        raise
+                    except Exception as e:
+                        logger.error(f"Error exploring query: {str(e)}")
                     
         return paths
     
-    def _extract_key_findings(self, paths: List[SearchPath], context: ResearchContext) -> List[Dict]:
-        """Extract key findings from explored paths"""
-        self._check_timeout(context)  # Add timeout check
+    def _extract_key_findings(self, paths: List[SearchPath], search_results_dict: Dict[str, List], context: ResearchContext) -> List[Dict]:
+        """Extract key findings from explored paths and search results"""
+        self._check_timeout(context)
         
-        # Simulate some work
-        time.sleep(0.01)
+        # If custom function provided, use it
+        if self.extract_findings_function:
+            return self.extract_findings_function(paths, search_results_dict)
         
+        # Default implementation: create findings from top search results
         findings = []
         for path in paths:
             self._check_timeout(context)
-            findings.append({
-                "query": path.query,
-                "depth": path.depth,
-                "confidence": path.relevance_score,
-                "finding": f"Key finding for {path.query}"
-            })
-        return findings
-    
-    def _gather_evidence(self, paths: List[SearchPath], context: ResearchContext) -> List[Dict]:
-        """Gather supporting evidence for findings"""
-        self._check_timeout(context)  # Add timeout check
+            
+            query = path.query
+            if query in search_results_dict:
+                # Use top results for this query path
+                for i, result in enumerate(search_results_dict[query][:3]):  # Top 3 results per query
+                    finding = {
+                        "query": query,
+                        "depth": path.depth,
+                        "confidence": path.relevance_score * (0.9 - (i * 0.1)),  # Decrease confidence for lower ranked results
+                        "finding": f"{result.title if hasattr(result, "title") else result["title"]} - {result.snippet if hasattr(result, "snippet") else result["snippet"]}",
+                        "source": result.source if hasattr(result, "source") else result["source"],
+                        "url": result.url if hasattr(result, "url") else result["url"]
+                    }
+                    findings.append(finding)
         
-        # Simulate some work
-        time.sleep(0.01)
+        # Deduplicate findings
+        unique_findings = {}
+        for finding in findings:
+            key = finding['finding'][:100]  # Use beginning of finding as deduplication key
+            if key not in unique_findings or unique_findings[key]['confidence'] < finding['confidence']:
+                unique_findings[key] = finding
+                
+        # Sort by confidence and limit to top 20
+        sorted_findings = sorted(unique_findings.values(), key=lambda x: x['confidence'], reverse=True)
+        return sorted_findings[:20]
+    
+    def _gather_evidence(self, paths: List[SearchPath], search_results_dict: Dict[str, List], context: ResearchContext) -> List[Dict]:
+        """Gather supporting evidence for findings"""
+        self._check_timeout(context)
         
         evidence = []
         for path in paths:
             self._check_timeout(context)
-            evidence.append({
-                "query": path.query,
-                "source": f"Source for {path.query}",
-                "evidence": f"Supporting evidence from depth {path.depth}",
-                "confidence": path.relevance_score
-            })
+            
+            query = path.query
+            if query in search_results_dict:
+                for i, result in enumerate(search_results_dict[query]):
+                    evidence_item = {
+                        "query": query,
+                        "source": result.source if hasattr(result, "source") else result["source"],
+                        "url": result.url if hasattr(result, "url") else result["url"],
+                        "title": result.title if hasattr(result, "title") else result["title"],
+                        "evidence": result.snippet if hasattr(result, "snippet") else result["snippet"],
+                        "confidence": path.relevance_score * (1.0 - (i * 0.05))  # Slight decrease in confidence for lower ranked
+                    }
+                    evidence.append(evidence_item)
+        
         return evidence
     
     def research(self, query: str) -> ResearchResult:
         """Perform deep research on a query"""
         start_time = datetime.now()
+        logger.info(f"Starting deep research for query: {query}")
+        
+        # Dictionary to store search results for each query
+        search_results_dict = {}
         
         context = ResearchContext(
             original_query=query,
@@ -187,23 +300,34 @@ class DeepResearcher:
         )
         
         try:
+            # Initial search for the root query
+            initial_results = self.search_function(query)
+            search_results_dict[query] = initial_results
+            logger.info(f"Initial search found {len(initial_results)} results")
+            
             # Add initial timeout check
             self._check_timeout(context)
             
+            # Explore query paths recursively
             exploration_paths = self._explore_query(query, context)
+            logger.info(f"Exploration complete, found {len(exploration_paths)} paths")
+            
             self._check_timeout(context)
             
             # Build query tree
             query_tree = {}
             for path in exploration_paths:
                 self._check_timeout(context)
-                if path.parent_query not in query_tree:
-                    query_tree[path.parent_query or "root"] = []
-                query_tree[path.parent_query or "root"].append(path.query)
+                parent = path.parent_query or "root"
+                if parent not in query_tree:
+                    query_tree[parent] = []
+                query_tree[parent].append(path.query)
             
             # Extract findings and evidence
-            key_findings = self._extract_key_findings(exploration_paths, context)
-            evidence = self._gather_evidence(exploration_paths, context)
+            key_findings = self._extract_key_findings(exploration_paths, search_results_dict, context)
+            evidence = self._gather_evidence(exploration_paths, search_results_dict, context)
+            
+            logger.info(f"Extracted {len(key_findings)} key findings and {len(evidence)} evidence items")
             
             # Calculate overall confidence
             confidence_score = (
@@ -211,16 +335,22 @@ class DeepResearcher:
                 len(exploration_paths) if exploration_paths else 0.0
             )
             
+            research_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Deep research completed in {research_time:.2f} seconds")
+            
             return ResearchResult(
+                query=query,
                 query_tree=query_tree,
                 key_findings=key_findings,
                 evidence=evidence,
                 confidence_score=confidence_score,
-                research_time=(datetime.now() - start_time).total_seconds(),
+                research_time=research_time,
                 exploration_paths=exploration_paths
             )
             
         except TimeoutError:
+            logger.warning(f"Research timeout exceeded after {(datetime.now() - start_time).total_seconds():.2f} seconds")
             raise
         except Exception as e:
+            logger.error(f"Deep research failed: {str(e)}")
             raise RuntimeError(f"Deep research failed: {str(e)}")

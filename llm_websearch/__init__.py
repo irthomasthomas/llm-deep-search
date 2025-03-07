@@ -14,10 +14,25 @@ from bs4 import BeautifulSoup
 import time
 import threading
 from functools import wraps, lru_cache
+import importlib
+import sys
+import inspect
+
+# Get the current module
+current_module = sys.modules[__name__]
+
+# Import the components for deep research and token optimization
+try:
+    from .deep_research import DeepResearcher, ResearchResult, SearchPath
+    from .result_formatter import ResearchResultFormatter, FormatType, FormatOptions
+except ImportError:
+    # Fallback for development/testing
+    from deep_research import DeepResearcher, ResearchResult, SearchPath
+    from result_formatter import ResearchResultFormatter, FormatType, FormatOptions
 
 load_dotenv()
 
-# Configure logging
+# Configure logging - default level is INFO, so no debug unless verbose flag is set
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -359,19 +374,89 @@ def search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[Sea
         
         logger.warning("Falling back to mock results")
         for i in range(num_results):
-            all_results.append({
-                "url": f"https://example.com/result{i+1}",
-                "title": f"Mock Result {i+1} for '{query}'",
-                "snippet": f"This is a mock result because all search engines failed. Pretending to have information about {query}.",
-                "rank": i,
-                "source": "mock"
-            })
+            all_results.append(SearchResult(
+                url=f"https://example.com/result{i+1}",
+                title=f"Mock Result {i+1} for '{query}'",
+                snippet=f"This is a mock result because all search engines failed. Pretending to have information about {query}.",
+                rank=i,
+                source="mock"
+            ))
     
     # Sort by rank and limit to requested number
-    all_results.sort(key=lambda x: x.rank if hasattr(x, 'rank') else x["rank"])
+    all_results.sort(key=lambda x: x.rank if hasattr(x, "rank") else x["rank"] if hasattr(x, 'rank') else x["rank"])
     return all_results[:num_results]
 
-def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS) -> Dict:
+def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS, format_type: str = "summary") -> Dict:
+    """
+    Performs a deep, iterative search using both Google and Bing, and analyzes the results.
+    
+    Args:
+        query: The search query
+        num_results: Number of results to fetch
+        timeout: Timeout for each request in seconds
+        max_iterations: Maximum number of iterative search rounds
+        format_type: The output format type (compact, summary, full)
+    
+    Returns:
+        A dictionary with the formatted research results
+    """
+    logger.info(f"Performing deep search for query: '{query}', num_results: {num_results}, format: {format_type}")
+
+    # Define a search function that will be used by DeepResearcher
+    def search_function(search_query):
+        return search(search_query, num_results=num_results, timeout=timeout)
+
+    # Initialize DeepResearcher with the actual search function
+    researcher = DeepResearcher(
+        search_function=search_function,
+        max_depth=max_iterations,
+        relevance_threshold=0.7,
+        max_workers=4,
+        timeout=timeout
+    )
+    
+    # Run the deep research with actual search
+    try:
+        # Perform the actual research using the search function
+        research_result = researcher.research(query)
+        
+        # Format the results based on requested format type
+        format_type_enum = FormatType.SUMMARY  # Default
+        if format_type.lower() == "compact":
+            format_type_enum = FormatType.COMPACT
+        elif format_type.lower() == "full":
+            format_type_enum = FormatType.FULL
+            
+        # Create format options
+        options = FormatOptions(
+            include_metadata=True,
+            max_findings=None,
+            confidence_threshold=0.6,
+            include_exploration_paths=(format_type_enum == FormatType.FULL)
+        )
+        
+        # Format the results
+        formatter = ResearchResultFormatter(format_type=format_type_enum, options=options)
+        formatted_result = formatter.format_result(research_result)
+        
+        # Calculate and add token usage information
+        token_counts = {
+            FormatType.COMPACT: len(str(formatted_result)) // 4,  # Approximate token count
+            FormatType.SUMMARY: len(str(formatted_result)) // 4,
+            FormatType.FULL: len(str(formatted_result)) // 4
+        }
+        formatted_result["token_usage"] = token_counts[format_type_enum]
+        
+        return formatted_result
+        
+    except Exception as e:
+        logger.error(f"Error during deep research: {e}")
+        return {
+            "error": str(e),
+            "query": query
+        }
+
+def deep_search_old(query: str, num_results: int = 10, timeout: float = 30.0, max_iterations: int = MAX_ITERATIONS) -> Dict:
     """Performs a deep, iterative search using both Google and Bing, and analyzes the results."""
     logger.info(f"Performing deep search for query: '{query}', num_results: {num_results}, timeout: {timeout}, max_iterations: {max_iterations}")
 
@@ -388,21 +473,21 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
         search_results = search(current_query, num_results, timeout)
 
         with ThreadPoolExecutor(max_workers=min(10, num_results)) as executor:
-            future_to_url = {executor.submit(fetch_and_summarize, result.url, current_query, timeout): result for result in search_results}
+            future_to_url = {executor.submit(fetch_and_summarize, result.url if hasattr(result, "url") else result["url"], current_query, timeout): result for result in search_results}
             processed_results = []
             for future in as_completed(future_to_url):
                 result = future_to_url[future]
                 try:
                     summary = future.result()
-                    processed_results.append(ProcessedResult(url=result.url, title=result.title, summary=summary, source=result.source))
+                    processed_results.append(ProcessedResult(url=result.url if hasattr(result, "url") else result["url"], title=result.title if hasattr(result, "title") else result["title"], summary=summary, source=result.source if hasattr(result, "source") else result["source"]))
                     all_summaries.append(summary)
                 except Exception as e:
-                    logger.error(f"Error processing {result.url}: {e}")
+                    logger.error(f"Error processing {result.url if hasattr(result, "url") else result["url"]}: {e}")
 
         all_results.extend(processed_results)
 
         # Extract summaries and perform analysis
-        combined_summaries = " ".join(f"{res.title} ({res.url}):{res.summary}" for res in processed_results)
+        combined_summaries = " ".join(f"{res.title if hasattr(res, "title") else res["title"]} ({res.url if hasattr(res, "url") else res["url"]}):{res.summary}" for res in processed_results)
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_themes = executor.submit(extract_themes, combined_summaries, current_query)
             future_contradictions = executor.submit(detect_contradictions, combined_summaries)
@@ -454,7 +539,7 @@ def deep_search(query: str, num_results: int = 10, timeout: float = 30.0, max_it
                 try:
                     theme_results = future.result()
                     all_iterative_results.extend([
-                        {"theme": theme, "url": result.url, "title": result.title, "snippet": result.snippet}
+                        {"theme": theme, "url": result.url if hasattr(result, "url") else result["url"], "title": result.title if hasattr(result, "title") else result["title"], "snippet": result.snippet if hasattr(result, "snippet") else result["snippet"]}
                         for result in theme_results[:3]  # Limit to top 3 results per theme
                     ])
                 except Exception as e:
@@ -477,7 +562,7 @@ Please synthesize the information thoughtfully to help the user understand the s
     # Prepare the final result object
     final_result = {
         "query": query,
-        "results": [{"url": r.url, "title": r.title, "summary": r.summary, "source": r.source} for r in all_results],
+        "results": [{"url": r.url if hasattr(r, "url") else r["url"], "title": r.title if hasattr(r, "title") else r["title"], "summary": r.summary, "source": r.source if hasattr(r, "source") else r["source"]} for r in all_results],
         "summary": overall_summary,
         "themes": all_themes,
         "contradictions": all_contradictions,
@@ -509,10 +594,10 @@ def register_commands(cli):
         try:
             results = search(query, num_results, timeout)
             for i, result in enumerate(results, 1):
-                click.echo(f"{i}. {result.title}")
-                click.echo(f"   URL: {result.url}")
-                click.echo(f"   Snippet: {result.snippet}")
-                click.echo(f"   Source: {result.source}")
+                click.echo(f"{i}. {result.title if hasattr(result, "title") else result["title"]}")
+                click.echo(f"   URL: {result.url if hasattr(result, "url") else result["url"]}")
+                click.echo(f"   Snippet: {result.snippet if hasattr(result, "snippet") else result["snippet"]}")
+                click.echo(f"   Source: {result.source if hasattr(result, "source") else result["source"]}")
                 click.echo()
         except SearchError as e:
             click.echo(f"Error: {e}", err=True)
@@ -522,15 +607,17 @@ def register_commands(cli):
     @click.option("--num-results", "-n", default=DEFAULT_NUM_RESULTS, help="Number of search results to return")
     @click.option("--timeout", "-t", default=30.0, help="Timeout for search requests in seconds")
     @click.option("--iterations", "-i", default=MAX_ITERATIONS, help="Maximum number of iterative search rounds")
+    @click.option("--format-type", "-f", type=click.Choice(['compact', 'summary', 'full'], case_sensitive=False), 
+                  default='summary', help="Output format to optimize tokens")
     @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-    def deep_search_cmd(query, num_results, timeout, iterations, verbose):
-        """Performs a deep search using both Google and Bing, and analyzes the results."""
+    def deep_search_cmd(query, num_results, timeout, iterations, format_type, verbose):
+        """Performs a deep search with token-optimized results."""
         if verbose:
             logging.getLogger().setLevel(logging.DEBUG)
         try:
-            result = deep_search(query, num_results, timeout, iterations)
+            result = deep_search(query, num_results, timeout, iterations, format_type)
             click.echo(json.dumps(result, indent=2))
-        except SearchError as e:
+        except Exception as e:
             click.echo(f"Error: {e}", err=True)
 
     return websearch

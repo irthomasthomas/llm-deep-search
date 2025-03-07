@@ -91,15 +91,18 @@ def test_search(mock_bing_search, mock_google_search):
 @patch("llm_websearch.BeautifulSoup")
 @patch("llm_websearch.llm.get_model")
 def test_fetch_and_summarize(mock_get_model, mock_bs, mock_client):
-    mock_get_model.return_value = mock_model
     mock_response = MagicMock()
     mock_response.text = "<html><body>Test content</body></html>"
     mock_client.return_value.__enter__.return_value.get.return_value = mock_response
 
     mock_bs.return_value.get_text.return_value = "Test content"
 
+    # Create mock model and response
     mock_model = MagicMock()
-    mock_model.prompt.return_value.text.return_value = "Summarized content"
+    mock_response = MagicMock()
+    mock_response.text.return_value = "Summarized content"
+    mock_model.prompt.return_value = mock_response
+    mock_get_model.return_value = mock_model
 
     result = fetch_and_summarize("https://example.com", "test query")
 
@@ -110,7 +113,6 @@ def test_fetch_and_summarize(mock_get_model, mock_bs, mock_client):
 @patch("llm_websearch.fetch_and_summarize")
 @patch("llm_websearch.llm.get_model")
 def test_deep_search(mock_get_model, mock_fetch_and_summarize, mock_search):
-    mock_get_model.return_value = mock_model
     mock_search_results = [
         SearchResult("https://example1.com", "Example 1", "Snippet 1", 0, "google"),
         SearchResult("https://example2.com", "Example 2", "Snippet 2", 1, "bing")
@@ -119,8 +121,12 @@ def test_deep_search(mock_get_model, mock_fetch_and_summarize, mock_search):
 
     mock_fetch_and_summarize.side_effect = ["Summary 1", "Summary 2"]
 
+    # Create mock model and response
     mock_model = MagicMock()
-    mock_model.prompt.return_value.text.return_value = "Overall summary"
+    mock_response = MagicMock()
+    mock_response.text.return_value = "Overall summary"
+    mock_model.prompt.return_value = mock_response
+    mock_get_model.return_value = mock_model
 
     result = deep_search("test query", num_results=2)
 
@@ -176,7 +182,6 @@ def test_search_command(mock_search, cli_runner):
 
 @patch("llm_websearch.deep_search")
 def test_deep_search_command(mock_deep_search, cli_runner):
-
     mock_result = {
       "query": "test",
       "results": "results",
@@ -192,4 +197,3 @@ def test_deep_search_command(mock_deep_search, cli_runner):
     assert result.exit_code == 0
     assert "test" in result.output
     assert "summary" in result.output
-

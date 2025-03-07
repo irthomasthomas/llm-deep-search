@@ -1,125 +1,67 @@
-============================================================
-  TOKEN OPTIMIZATION DEMONSTRATION
-============================================================
-This demo shows how the same research result can be formatted
-at different detail levels to optimize token usage.
+# Fixes Applied to llm-websearch and deep-search-v4
 
-============================================================
-  COMPACT FORMAT (Minimal Tokens)
-============================================================
-Token usage: Approximately 120 tokens
-Content:
-  query: neural networks
-  key_conclusions: ['Neural networks are computational models inspired by the human brain.', 'Most neural networks include input, hidden, and output layers.', 'Neural networks are widely used in image recognition, NLP, and recommendation systems.', 'Deep neural networks contain multiple hidden layers that extract hierarchical features.', 'Neural networks help in medical image analysis and disease prediction.']
-  confidence: 0.87
-  sources_count: 5
-k
-============================================================
-  SUMMARY FORMAT (Moderate Tokens)
-============================================================
-Token usage: Approximately 221 tokens
-Content preview:
-  Query: neural networks
-  Findings count: 5
-  Evidence summary: Evidence collected from 5 items across 5 sources. Top sources: Machine Learning Textbook (1), Deep Learning Journal (1), IEEE Conference Paper (1). Average evidence confidence: 0.87.
-  Exploration stats: {'depth': 1, 'paths_explored': 2, 'total_time': 3.2}
+## Issues Identified
 
-============================================================
-  FULL FORMAT (Maximum Detail)
-============================================================
-Token usage: Approximately 619 tokens
-Content structure:
-  query_tree: <class 'dict'>
-  key_findings: 5 items
-  evidence: 5 items
-  confidence_score: <class 'float'>
-  research_time: <class 'float'>
-  exploration_paths: 2 items
+1. **Incorrect LLM API Usage**: The plugin was trying to call `llm.prompt()` directly, which doesn't exist in the current LLM API.
 
-============================================================
-  PROGRESSIVE LOADING DEMONSTRATION
-============================================================
-Starting with compact format, then loading details for one finding:
-1. Compact result: 5 key conclusions
-2. Loaded details for finding: 'Neural networks are computational models inspired by the human brain.'
-   Evidence items: 1
-   Related queries: ['neural networks architecture', 'neural networks applications']
+2. **Test File Mismatch**: Test files were mocking `llm.prompt()` instead of the correct pattern of using `llm.get_model()` and then calling `prompt()` on the model.
 
-============================================================
-  TOKEN USAGE COMPARISON
-============================================================
-COMPACT format:     120 tokens
-SUMMARY format:     221 tokens
-FULL format:        619 tokens
-PROGRESSIVE loading: 230 tokens (compact + one finding details)
+3. **Dictionary vs. Object Attributes**: Error handling for search results was inconsistent, causing "'dict' object has no attribute 'url'" errors.
 
-Token savings vs FULL format:
-  COMPACT:           499 tokens (80.6%)
-  SUMMARY:           398 tokens (64.3%)
-  PROGRESSIVE:       389 tokens (62.8%)
-Exit Code: 0
+4. **Plugin Registration**: The plugin entry point in pyproject.toml needed to be updated to ensure proper registration with the LLM framework.
 
-# Deep Research Feature Improvement Recommendations
+## Solutions Implemented
 
-## Analysis and Implementation Results
+1. **Fixed LLM API Usage**:
+   - Updated all direct calls to `llm.prompt()` to use the correct pattern:
+     ```python
+     model = llm.get_model(model_name)
+     response = model.prompt(prompt_text)
+     summary = response.text()
+     ```
 
-I've thoroughly analyzed the deep-research feature in the codebase and identified several opportunities for improvement, focusing particularly on token optimization and overall enhancement of the research process.
+2. **Updated Test Files**:
+   - Replaced `@patch("llm_websearch.llm.prompt")` with `@patch("llm_websearch.llm.get_model")`
+   - Fixed test functions to mock the new API pattern
+   - Ensured proper response object setup with `.text()` method
 
-### Key Findings:
+3. **Improved Result Handling**:
+   - Added safeguards for accessing attributes on either objects or dictionaries:
+     ```python
+     all_results.sort(key=lambda x: x.rank if hasattr(x, "rank") else x["rank"])
+     ```
+   - Ensured consistent handling for both result types
 
-1. The current DeepResearcher implementation provides a recursive search capability that generates detailed research results but produces verbose output that consumes many tokens.
+4. **Fixed Plugin Registration**:
+   - Updated pyproject.toml to have the correct entry point:
+     ```toml
+     [project.entry-points.llm]
+     websearch = "llm_websearch"
+     ```
 
-2. The implementation has a solid foundation with:
-   - Recursive query exploration
-   - Relevance scoring
-   - Parallel execution support
-   - Timeouts and error handling
-   - Rich metadata collection
+## Comprehensive Testing
 
-3. The primary areas for improvement are:
-   - Token optimization for research results
-   - Research quality enhancements
-   - Search quantity improvements
-   - User experience enhancements
+- Verified both `llm websearch search` and `llm websearch deep-search` commands work correctly
+- Tested with various queries and options to ensure no errors occur
+- Confirmed that both summarized and full-format results are returned properly
 
-### Token Optimization Implementation:
+## Additional Improvements
 
-I've designed and implemented a tiered result formatting system for the deep-research feature that addresses the token optimization concerns:
+1. **Robust Error Handling**:
+   - Improved error handling for API calls
+   - Better fallbacks when search engines fail
 
-- **FormatType Enum**: Defines three levels of detail (COMPACT, SUMMARY, FULL)
-- **FormatOptions Class**: Provides configuration for detailed control of output
-- **ResearchResultFormatter Class**: Transforms research results into optimized formats
+2. **Modular Fix Implementation**:
+   - Created specialized scripts for each fix category
+   - Ensured changes can be applied independently
 
-The implementation demonstrates significant token savings:
-- COMPACT format: 80.6% token reduction compared to FULL format
-- SUMMARY format: 64.3% token reduction
-- PROGRESSIVE loading approach: 62.8% token reduction
+## Results
 
-### Complete Visualization:
+The fixes have successfully resolved all the identified issues. The plugin now:
 
-I've created Mermaid diagrams to visualize:
-1. The current deep-research architecture
-2. The proposed improvements across multiple dimensions
+1. Correctly interacts with the LLM API
+2. Handles both object and dictionary-style search results
+3. Properly registers with the LLM framework
+4. Works with all command options and formats
 
-## Recommendations for Implementation
-
-I recommend implementing the following improvements to the deep-research feature:
-
-### 1. Token Optimization (Highest Priority)
-- Implement the tiered result formatting system as demonstrated
-- Add progressive loading capabilities to allow fetching additional details only when needed
-- Create a standard API for requesting different format types
-
-### 2. Research Quality Improvements
-- Integrate with QueryExpander for more intelligent subquery generation
-- Add source credibility assessment and cross-verification
-
-### 3. Quantity Improvements
-- Optimize parallel exploration with work-stealing thread pool
-- Implement caching of research results
-- Add support for incremental research that builds on previous findings
-
-### 4. User Experience Enhancements
-- Add progress reporting for long-running research
-- Create a natural language interface for research goals
-- Implement interactive filtering of results
+These improvements ensure that users can effectively use the web search and deep research capabilities of the llm-websearch plugin.

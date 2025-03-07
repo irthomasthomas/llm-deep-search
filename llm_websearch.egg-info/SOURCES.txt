@@ -8,6 +8,7 @@ llm_websearch/fast_filter.py
 llm_websearch/llm_integration.py
 llm_websearch/llm_search.py
 llm_websearch/query_expansion.py
+llm_websearch/result_formatter.py
 llm_websearch/search.py
 llm_websearch/summarization.py
 llm_websearch.egg-info/PKG-INFO
@@ -16,6 +17,7 @@ llm_websearch.egg-info/dependency_links.txt
 llm_websearch.egg-info/entry_points.txt
 llm_websearch.egg-info/requires.txt
 llm_websearch.egg-info/top_level.txt
+llm_websearch/tests/fixed_test_websearch.py
 llm_websearch/tests/test_websearch.py
 tests/test_cache.py
 tests/test_deep_research.py
