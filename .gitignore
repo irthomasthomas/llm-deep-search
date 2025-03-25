@@ -2,3 +2,15 @@
 .agent/
 .artefacts
 .artefacts/
+.venv
+.venv/
+__pycache__
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info
+*.egg-info/
+*.whl
+*.tar.gz

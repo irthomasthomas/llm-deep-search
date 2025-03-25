@@ -6,6 +6,7 @@ import concurrent.futures
 import time
 from datetime import datetime
 import logging
+from llm_websearch.fast_filter import FastFilter
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,8 @@ class DeepResearcher:
                  timeout: float = 300.0,
                  generate_subqueries_function: Optional[Any] = None,
                  analyze_relevance_function: Optional[Any] = None,
-                 extract_findings_function: Optional[Any] = None):
+                 extract_findings_function: Optional[Any] = None,
+                 llm: Optional[Any] = None):
         """
         Initialize the DeepResearcher.
         
@@ -63,6 +65,7 @@ class DeepResearcher:
             generate_subqueries_function: Optional custom function to generate subqueries
             analyze_relevance_function: Optional custom function to analyze relevance
             extract_findings_function: Optional custom function to extract findings
+            llm: Optional LLM for enhanced analysis
         """
         self.search_function = search_function
         self.max_depth = max_depth
@@ -72,6 +75,8 @@ class DeepResearcher:
         self.generate_subqueries_function = generate_subqueries_function
         self.analyze_relevance_function = analyze_relevance_function
         self.extract_findings_function = extract_findings_function
+        self.llm = llm
+        self.fast_filter = FastFilter()
     
     def _check_timeout(self, context: ResearchContext) -> None:
         """Check if research has exceeded timeout"""
@@ -156,7 +161,15 @@ class DeepResearcher:
         intersection = parent_terms.intersection(current_terms)
         union = parent_terms.union(current_terms)
         
-        return len(intersection) / len(union) if union else 0.0
+        jaccard_similarity = len(intersection) / len(union) if union else 0.0
+        
+        # Incorporate FastFilter score
+        fast_filter_score = self.fast_filter.similarity(parent_query, current_query)
+        
+        # Combine Jaccard similarity and FastFilter score (weighted average)
+        relevance_score = (0.7 * jaccard_similarity) + (0.3 * fast_filter_score)
+        
+        return relevance_score
     
     def _explore_query(self,
                       query: str,
@@ -182,6 +195,7 @@ class DeepResearcher:
         try:
             search_results = self.search_function(query)
             logger.info(f"Found {len(search_results)} results for query: {query}")
+            search_results_dict[query] = search_results  # Store results
         except Exception as e:
             logger.error(f"Search failed for query '{query}': {str(e)}")
             search_results = []
@@ -229,7 +243,6 @@ class DeepResearcher:
         if self.extract_findings_function:
             return self.extract_findings_function(paths, search_results_dict)
         
-        # Default implementation: create findings from top search results
         findings = []
         for path in paths:
             self._check_timeout(context)
@@ -254,9 +267,24 @@ class DeepResearcher:
             key = finding['finding'][:100]  # Use beginning of finding as deduplication key
             if key not in unique_findings or unique_findings[key]['confidence'] < finding['confidence']:
                 unique_findings[key] = finding
-                
-        # Sort by confidence and limit to top 20
-        sorted_findings = sorted(unique_findings.values(), key=lambda x: x['confidence'], reverse=True)
+        
+        # Use LLM to refine and extract key insights
+        if self.llm:
+            refined_findings = []
+            for finding in unique_findings.values():
+                try:
+                    prompt = f"Summarize the key insight from this finding in one sentence: {finding['finding']}"
+                    llm_summary = self.llm(prompt)
+                    finding['llm_summary'] = llm_summary
+                    refined_findings.append(finding)
+                except Exception as e:
+                    logger.warning(f"LLM processing failed for finding: {e}")
+                    refined_findings.append(finding) # Append original finding if LLM fails
+            sorted_findings = sorted(refined_findings, key=lambda x: x['confidence'], reverse=True)
+        else:
+            # Sort by confidence and limit to top 20
+            sorted_findings = sorted(unique_findings.values(), key=lambda x: x['confidence'], reverse=True)
+            
         return sorted_findings[:20]
     
     def _gather_evidence(self, paths: List[SearchPath], search_results_dict: Dict[str, List], context: ResearchContext) -> List[Dict]:

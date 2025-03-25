@@ -295,8 +295,8 @@ def google_search(query: str, num_results: int = 10, timeout: float = 10.0) -> L
 @rate_limit(BING_RATE_LIMIT)
 def bing_search(query: str, num_results: int = 10, timeout: float = 10.0) -> List[SearchResult]:
     """Perform a Bing Custom Search."""
-    if not BING_CUSTOM_SEARCH_KEY:
-        raise SearchError("Bing Custom Search API key not provided.")
+    if not BING_CUSTOM_SEARCH_KEY or not BING_CUSTOM_CONFIG_ID:
+        raise SearchError("Bing Custom Search API key and Config ID must be provided.")
     
     cache_key = _cache_key("bing_search", query, num_results)
     cached_result = cache.get(cache_key)
@@ -304,16 +304,17 @@ def bing_search(query: str, num_results: int = 10, timeout: float = 10.0) -> Lis
         logger.info(f"Using cached Bing search results for query: '{query}'")
         return cached_result
     
-    url = f"https://{AZURE_REGION or 'api'}.cognitive.microsoft.com/bing/v7.0/search"
+    url = "https://api.bing.microsoft.com/v7.0/custom/search"
     headers = {"Ocp-Apim-Subscription-Key": BING_CUSTOM_SEARCH_KEY}
+    if AZURE_REGION:
+        headers["Ocp-Apim-Subscription-Region"] = AZURE_REGION
+    
     params = {
         "q": query,
+        "customconfig": BING_CUSTOM_CONFIG_ID,
         "count": min(num_results, 50),  # Bing API limit
-        "responseFilter": "Webpages",
+        "offset": 0,
     }
-    
-    if BING_CUSTOM_CONFIG_ID:
-        params["customConfig"] = BING_CUSTOM_CONFIG_ID
     
     results = []
     try:
