@@ -1,14 +1,17 @@
-# LLM Web Search Plugin with Token Optimization
+# LLM-WebSearch: Deep Research Module
 
-A plugin for the [LLM](https://github.com/simonw/llm) tool that provides web search capabilities with token-optimized outputs.
+The Deep Research module enables advanced recursive search capabilities, allowing LLMs to explore topics in depth by automatically generating and following subqueries.
 
 ## Features
 
-- Basic web search using Google and Bing APIs
-- Deep research with recursive query exploration and analysis
-- Token-optimized output formats for efficient LLM consumption
-- Caching system for faster repeated searches
-- Rate limiting to comply with API usage requirements
+- **Recursive Query Exploration**: Automatically generate and explore related subqueries based on initial search results
+- **Adaptive Relevance Analysis**: Intelligently determine which search paths are worth exploring further
+- **Path-based Exploration**: Track the search path through multiple levels of exploration
+- **FastFilter Integration**: Efficiently filter content for relevance using lightweight models
+- **LLM-based Analysis**: Leverage LLMs for enhanced subquery generation and content understanding
+- **Diminishing Returns Detection**: Automatically terminate search paths with diminishing information gain
+- **Contradiction Detection**: Identify and highlight contradictory information from different sources
+- **Entity Extraction**: Extract key entities and concepts from research findings
 
 ## Installation
 
@@ -16,78 +19,152 @@ A plugin for the [LLM](https://github.com/simonw/llm) tool that provides web sea
 pip install llm-websearch
 ```
 
-## Configuration
-
-Create a `.env` file with your API keys:
-
-```
-GOOGLE_SEARCH_KEY=your_google_api_key
-GOOGLE_SEARCH_ID=your_google_search_engine_id
-BING_CUSTOM_SEARCH_KEY=your_bing_api_key
-BING_CUSTOM_CONFIG_ID=your_bing_config_id
-```
-
-## Token Optimization
-
-This plugin implements a tiered result formatting system that dramatically reduces token usage while preserving key information:
-
-| Format | Token Usage | Savings vs FULL |
-|--------|-------------|-----------------|
-| COMPACT | ~120 tokens | 80.6% |
-| SUMMARY | ~221 tokens | 64.3% |
-| FULL | ~619 tokens | 0% |
-
 ## Usage
 
-### Basic Search
-
-```bash
-llm websearch search "neural networks"
-```
-
-### Deep Search with Token Optimization
-
-```bash
-llm websearch deep-search "neural networks" --format-type compact
-```
-
-Available formats:
-- `compact`: Minimal representation (approx. 120 tokens)
-- `summary`: Moderate detail (approx. 221 tokens)
-- `full`: Complete representation (approx. 619 tokens)
-
-### Python API
+### Basic Usage
 
 ```python
-from llm_websearch import deep_search
+from llm_websearch import DeepResearcher
+from llm_websearch.search import search_web
 
-# Get compact results
-result = deep_search("neural networks", format_type="compact")
+# Create a researcher with default parameters
+researcher = DeepResearcher(
+    search_function=search_web,
+    max_depth=3,
+    relevance_threshold=0.7,
+    max_workers=4,
+    timeout=300.0
+)
+
+# Perform deep research on a topic
+result = researcher.research("quantum computing applications")
+
+# Access research results
+print(f"Found {len(result.key_findings)} key findings")
+for finding in result.key_findings:
+    print(f"- {finding['finding']} (confidence: {finding['confidence']:.2f})")
+    print(f"  Source: {finding['source']}")
 ```
 
-## Progressive Loading
-
-You can start with a compact format and load additional details only when needed:
+### Advanced Configuration
 
 ```python
-# Start with compact format
-result = deep_search("neural networks", format_type="compact")
+from llm_websearch import DeepResearcher, FastFilter, LLMIntegration
 
-# Load details for specific finding when needed
-finding_details = get_finding_details(result, finding_idx=0)
+# Create FastFilter for efficient content filtering
+fast_filter = FastFilter(threshold=0.7, lightweight_model="gemini-2.0-flash")
+
+# Create LLM integration for enhanced analysis
+llm_integration = LLMIntegration()
+
+# Create researcher with advanced configuration
+researcher = DeepResearcher(
+    search_function=search_web,
+    max_depth=4,
+    relevance_threshold=0.6,
+    max_workers=8,
+    timeout=600.0,
+    fast_filter=fast_filter,
+    llm_integration=llm_integration,
+    exploration_budget=150,
+    diminishing_returns_threshold=0.15
+)
+
+# Perform research
+result = researcher.research("climate change mitigation strategies")
+
+# Access advanced results
+print("Key Findings:")
+for finding in result.key_findings[:5]:
+    print(f"- {finding['finding']}")
+
+print("\nContradictions:")
+for contradiction in result.contradictions:
+    print(f"- {contradiction['contradiction']}")
+
+print("\nKey Entities:")
+for entity, data in result.entities.items():
+    print(f"- {entity} (importance: {data['importance']:.2f})")
+    print(f"  {data['description']}")
 ```
 
-## Demo Scripts
+## API Reference
 
-The package includes several demo scripts to help you understand the token optimization features:
+### DeepResearcher
 
-- `token_optimization_demo.py`: Demonstrates the different format types
-- `token_optimization_viz.py`: Creates a visualization of token savings
+The main class for performing deep research.
 
-## Documentation
+```python
+DeepResearcher(
+    search_function,
+    max_depth=3,
+    relevance_threshold=0.7,
+    max_workers=4,
+    timeout=300.0,
+    generate_subqueries_function=None,
+    analyze_relevance_function=None,
+    extract_findings_function=None,
+    fast_filter=None,
+    llm_integration=None,
+    exploration_budget=100,
+    diminishing_returns_threshold=0.1
+)
+```
 
-For more details on the token optimization system, see:
-- [TOKEN_OPTIMIZATION.md](TOKEN_OPTIMIZATION.md): Detailed explanation of the token optimization system
+#### Parameters
+
+- `search_function`: Function that performs web searches
+- `max_depth`: Maximum depth for recursive exploration
+- `relevance_threshold`: Minimum relevance score to continue exploration
+- `max_workers`: Maximum number of concurrent workers
+- `timeout`: Research timeout in seconds
+- `generate_subqueries_function`: Optional custom function to generate subqueries
+- `analyze_relevance_function`: Optional custom function to analyze relevance
+- `extract_findings_function`: Optional custom function to extract findings
+- `fast_filter`: Optional FastFilter instance for content filtering
+- `llm_integration`: Optional LLMIntegration instance for LLM-based operations
+- `exploration_budget`: Maximum number of queries to explore
+- `diminishing_returns_threshold`: Threshold for determining diminishing returns
+
+### ResearchResult
+
+Container for deep research results.
+
+#### Properties
+
+- `query`: Original query string
+- `query_tree`: Dictionary mapping parent queries to their subqueries
+- `key_findings`: List of key findings with their metadata
+- `evidence`: List of supporting evidence
+- `confidence_score`: Overall confidence score for the research
+- `research_time`: Time taken for research in seconds
+- `exploration_paths`: List of all explored search paths
+- `contradictions`: List of contradictory information found
+- `entities`: Dictionary of key entities and concepts
+
+## Examples
+
+### Exploring a Technical Topic
+
+```python
+result = researcher.research("quantum cryptography implementations")
+
+# Print exploration paths
+for path in result.exploration_paths:
+    print(f"Path: {path.query} (depth: {path.depth}, relevance: {path.relevance_score:.2f})")
+```
+
+### Researching Controversial Topics
+
+```python
+result = researcher.research("artificial intelligence risks and benefits")
+
+# Print contradictions
+for contradiction in result.contradictions:
+    print(f"Contradiction: {contradiction['contradiction']}")
+    print(f"Between: '{contradiction['finding1']}' and '{contradiction['finding2']}'")
+    print(f"Confidence: {contradiction['confidence']:.2f}")
+```
 
 ## License
 

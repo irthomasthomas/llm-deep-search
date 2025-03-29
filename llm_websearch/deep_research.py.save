@@ -1,14 +1,9 @@
-"""Deep Research module for detailed recursive exploration of topics."""
+q"""Deep Research module for detailed recursive exploration of 
+topics."""
 
-import logging 
-import time
-import json
-import uuid
-import re
-from typing import List, Dict, Any, Callable, Optional, Tuple, Set 
-from datetime import datetime
-import concurrent.futures
-from copy import deepcopy
+import logging import time import json import uuid import re from typing 
+import List, Dict, Any, Callable, Optional, Tuple, Set from datetime 
+import datetime import concurrent.futures from copy import deepcopy
 
 from .llm_integration import LLMIntegration, LLMResponse, ModelTier
 
@@ -873,7 +868,8 @@ class DeepResearcher:
                 insights_text = ""
                 for idx, insight in enumerate(all_insights, 1):
                     confidence = "High" if insight["confidence"] >= 0.8 else "Medium" if insight["confidence"] >= 0.6 else "Low"
-                    insights_text += f"{idx}. {insight['text']} (Confidence: {confidence})"
+                    insights_text += f"{idx}. {insight['text']} (Confidence: {confidence})
+"
                 
                 prompt = f"""Based on these collected insights from multiple search paths about "{result.original_query}":
                 

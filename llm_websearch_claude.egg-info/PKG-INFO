@@ -1,11 +1,9 @@
 Metadata-Version: 2.4
-Name: llm-websearch
+Name: llm-websearch-claude
 Version: 0.1a0
 Summary: LLM plugin for web searching and deep searching with token optimization.
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
-Requires-Dist: requests
-Requires-Dist: requests
 Requires-Dist: llm
 Requires-Dist: click
 Requires-Dist: httpx

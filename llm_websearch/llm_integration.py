@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import threading
 from enum import Enum
+import hashlib
 
 class ModelTier(Enum):
     """LLM model tiers based on capabilities and cost"""
@@ -269,6 +270,14 @@ class LLMIntegration:
                 error=f"All models failed: {'; '.join(errors)}"
             )
     
+    def _create_cache_key(self, prompt: str, system_prompt: str, task_type: str, capabilities: List[str]) -> str:
+        """Create a deterministic cache key for LLM requests."""
+        # Create a unique string that represents this request
+        capabilities_str = ','.join(sorted(capabilities)) if capabilities else ''
+        key_content = f"{prompt}::{system_prompt}::{task_type}::{capabilities_str}"
+        # Create a hash to use as the cache key
+        return hashlib.md5(key_content.encode()).hexdigest()
+    
     def generate_response(self,
                          prompt: str,
                          system_prompt: str = "",
@@ -280,13 +289,16 @@ class LLMIntegration:
         
         # Try cache first
         if self.cache:
-            cache_key = {
-                "prompt": prompt,
-                "system_prompt": system_prompt,
-                "task_type": task_type,
-                "capabilities": required_capabilities
-            }
-            cached_response = self.cache.get(cache_key, None)
+            # Create a cache key using the hash function
+            cache_key = self._create_cache_key(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                task_type=task_type,
+                capabilities=required_capabilities
+            )
+            
+            # Try to get from cache with proper diskcache method
+            cached_response = self.cache.get(cache_key, default=None)
             if cached_response:
                 return cached_response
         
@@ -306,6 +318,14 @@ class LLMIntegration:
         
         # Cache successful response
         if self.cache and not response.error:
-            self.cache.set(cache_key, response)
+            # Create cache key consistently
+            cache_key = self._create_cache_key(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                task_type=task_type,
+                capabilities=required_capabilities
+            )
+            # Use proper diskcache method with expiration
+            self.cache.set(cache_key, response, expire=24*60*60)  # 24 hour expiration
         
         return response

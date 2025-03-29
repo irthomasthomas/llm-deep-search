@@ -1,10 +1,12 @@
 [project]
 name = "llm-websearch"
-version = "0.1.0"
+version = "0.1a.0"
 description = "LLM plugin for web searching and deep searching with token optimization."
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
+    "requests",
+    "requests",
     "llm",
     "click",
     "httpx",
