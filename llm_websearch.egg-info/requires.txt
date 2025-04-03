@@ -1,14 +1,16 @@
-requests
-requests
+aiolimiter
+google-generativeai
 llm
 click
 httpx
 python-dotenv
 diskcache
 beautifulsoup4
+pydantic>=2.0
+pydantic-settings
 
 [test]
 pytest
 pytest-asyncio
 pytest-mock
-unittest-mock
+respx

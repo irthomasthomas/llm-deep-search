@@ -1,0 +1,32 @@
+# llm-websearch Configuration File
+# --------------------------------
+# API Keys (REQUIRED for functionality)
+# Obtain keys from the respective service providers.
+# Environment variables (e.g., GOOGLE_API_KEY) will override values set here.
+
+# Google Search API (Custom Search Engine)
+google_api_key: "YOUR_GOOGLE_API_KEY_HERE" # Or set GOOGLE_API_KEY env var
+google_cse_id: "YOUR_GOOGLE_CSE_ID_HERE"   # Or set GOOGLE_CSE_ID env var
+
+# Bing Search API (Custom Search)
+bing_api_key: "YOUR_BING_API_KEY_HERE"          # Or set BING_API_KEY env var
+bing_custom_config_id: "YOUR_BING_CONFIG_ID_HERE" # Or set BING_CUSTOM_CONFIG_ID env var
+
+# LLM Configuration (Gemini - Requires GOOGLE_API_KEY if not set separately)
+# gemini_api_key: "YOUR_GEMINI_API_KEY_HERE" # Or set GEMINI_API_KEY/GOOGLE_API_KEY env var
+# default_llm_model: "gemini-1.5-flash" # Example: Override the default model
+
+# Search Behavior
+# max_results_per_engine: 10 # Default: 10
+# search_request_timeout: 10.0 # Default: 10.0 seconds
+# fast_filter_enabled: true # Default: true
+
+# Deep Research Behavior
+# deep_research_max_iterations: 3 # Default: 3
+# deep_search_max_branching: 3 # Default: 3
+# deep_search_relevance_threshold: 0.6 # Default: 0.6
+# deep_search_diminishing_returns: 0.1 # Default: 0.1
+# request_timeout_general: 30.0 # Default: 30.0 seconds
+
+# --- Optional Settings ---
+# log_level: "INFO" # Example: Set logging level (DEBUG, INFO, WARNING, ERROR)

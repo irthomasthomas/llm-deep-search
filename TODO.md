@@ -1,208 +1,44 @@
-1.  **Implement LLM-Powered Subquery Generation Function:**
-    *   **File:** `llm_websearch/__init__.py`
-    *   **Action:** Create a new internal function (e.g., `_generate_llm_subqueries`) within `__init__.py`. This function should take `original_query`, `combined_summaries`, `themes` (similar to the existing `generate_refined_queries`), and an `llm_integration_instance` as input. It should use `llm_integration_instance.generate_response` to call an appropriate LLM to generate relevant subqueries based on the input context. Adapt logic from the existing `generate_refined_queries` but ensure it uses the `LLMIntegration` instance.
-    *   **Deliverable:** Python function `_generate_llm_subqueries` in `llm_websearch/__init__.py`.
-2.  **Instantiate and Pass LLMIntegration:**
-    *   **File:** `llm_websearch/__init__.py` (within `deep_search` function or a setup area)
-    *   **Action:** Instantiate the `LLMIntegration` class from `llm_integration.py` *once*.
-    *   **Action:** Modify the instantiation of `DeepResearcher` within the `deep_search` function to pass the newly created `_generate_llm_subqueries` function as the `generate_subqueries_function` argument. Also, pass the `llm_integration` instance to `DeepResearcher` via the `llm_integration` argument.
-    *   **Deliverable:** Updated `deep_search` function in `llm_websearch/__init__.py` correctly initializing `LLMIntegration` and `DeepResearcher`.
-3.  **Refactor Existing LLM Calls in `__init__.py`:**
-    *   **File:** `llm_websearch/__init__.py`
-    *   **Action:** Modify `fetch_and_summarize`, `extract_themes`, `detect_contradictions`, and the original `generate_refined_queries` (if still used elsewhere, otherwise it might be redundant) to use the single `llm_integration` instance created in Task 2, calling its `generate_response` method instead of `llm.get_model(...).prompt(...)`. Adjust prompts and parameters as needed for the `generate_response` method signature.
-    *   **Deliverable:** Updated functions in `llm_websearch/__init__.py` using the central `LLMIntegration` instance.
-4.  **Provide LLMIntegration to DeepResearcher Internals:**
-    *   **File:** `llm_websearch/deep_research.py`
-    *   **Action:** Ensure the `DeepResearcher` class correctly stores the passed `llm_integration` instance (e.g., `self.llm_integration`).
-    *   **Action:** Modify internal methods within `DeepResearcher` that might benefit from LLM calls in the future (e.g., `_analyze_path_relevance`, `_extract_key_findings`, `_detect_contradictions`, `_extract_entities`) to check for and potentially use `self.llm_integration.generate_response(...)` if a custom function isn't provided or if enhanced logic is desired. (Initially, focus on ensuring the passed `generate_subqueries_function` works).
-    *   **Deliverable:** Updated `DeepResearcher` class in `llm_websearch/deep_research.py`.
-5.  **Remove `cache.py`:**
-    *   **File:** `llm_websearch/cache.py`
-    *   **Action:** Delete the entire `llm_websearch/cache.py` file.
-    *   **Action:** Remove any import statements related to `llm_websearch.cache` from other files.
-    *   **Deliverable:** Project structure without `llm_websearch/cache.py`.
-6.  **Consolidate Caching on `diskcache`:**
-    *   **File:** `llm_websearch/__init__.py`
-    *   **Action:** Ensure the `diskcache.Cache` instance (`cache`) is initialized appropriately.
-    *   **Action:** Verify and update caching logic within `google_search`, `bing_search`, and `fetch_and_summarize` to use the `diskcache` instance (`cache.get`, `cache.set`) with robust keys (including query, num_results, model name where applicable). Remove any remnants of the old `cache.py` usage.
-    *   **Action:** Consider adding caching within the `LLMIntegration.generate_response` method (using the `diskcache` instance passed during initialization or accessed globally/via config) to cache LLM query results. Ensure cache keys include prompt, system prompt, task type, etc.
-    *   **Deliverable:** Consistent use of `diskcache` for all relevant caching operations.
-7.  **Integrate `QueryExpander`:**
-    *   **File:** `llm_websearch/__init__.py` (within `deep_search`) and `llm_websearch/query_expansion.py`
-    *   **Action:** Instantiate `QueryExpander` (from `query_expansion.py`) within the `deep_search` function, passing the `llm_integration` instance and the `diskcache` instance.
-    *   **Action:** Before calling `researcher.research(query)`, use the `query_expander` instance to expand the initial `query`. Decide how to handle multiple expanded queries (e.g., run research for the top N, or pass context to the subquery generator). *Initial approach: Use the top expanded query or the original if expansion fails.*
-    *   **Alternatively:** Modify the LLM-based `_generate_llm_subqueries` function (Task 1) to incorporate logic inspired by `QueryExpander` for generating *follow-up* queries.
-    *   **Deliverable:** `QueryExpander` used in the `deep_search` flow or its logic integrated into subquery generation.
-8.  **Integrate `FastFilter`:**
-    *   **File:** `llm_websearch/__init__.py` (within `search` function) and `llm_websearch/fast_filter.py`.
-    *   **Action:** Instantiate `FastFilter` within the main `search` function.
-    *   **Action:** After collecting results from `google_search` and `bing_search` but *before* returning, use `fast_filter.filter_batch` on the snippets/content to remove irrelevant results quickly. Return only the filtered results.
-    *   **Action:** Ensure `FastFilter` can use `llm_integration` for its lightweight model if needed (refactor `_score_content` in `fast_filter.py`).
-    *   **Deliverable:** `FastFilter` integrated into the `search` function to pre-filter results.
-9.  **Integrate `DetailedAnalyzer`:**
-    *   **File:** `llm_websearch/deep_research.py`
-    *   **Action:** Consider replacing or augmenting the call to `fetch_and_summarize` (which might be implicitly used via the `search_function` results or called separately) within `DeepResearcher` or its data processing steps. Instantiate `DetailedAnalyzer` (passing `llm_integration`).
-    *   **Action:** When processing results for a query path (e.g., within `_extract_key_findings` or a dedicated processing step), fetch full content for promising URLs and use `detailed_analyzer.analyze_content` or `analyze_batch` to get richer analysis instead of just a basic summary. This richer data can feed into finding extraction and relevance.
-    *   **Deliverable:** `DetailedAnalyzer` used within `DeepResearcher` for deeper content analysis of search results.
-10. **Integrate `Summarizer`:**
-    *   **File:** `llm_websearch/__init__.py` (within `deep_search`) and `llm_websearch/summarization.py`
-    *   **Action:** Instantiate `Summarizer` (passing `llm_integration`) at the end of the `deep_search` function.
-    *   **Action:** After `researcher.research(query)` returns the `research_result`, extract the `key_findings` or `evidence` text.
-    *   **Action:** Pass this extracted text content to `summarizer.summarize`.
-    *   **Action:** Use the output from `summarizer.summarize` (e.g., tiered summaries, key insights) to structure the final output returned by the `deep_search` function, potentially replacing the simple `summary` field generated previously.
-    *   **Deliverable:** `Summarizer` used to process and structure the final output of `deep_search`.
-11. **Refactor `__init__.py`:**
-    *   **File:** `llm_websearch/__init__.py`
-    *   **Action:** Create a new file, e.g., `llm_websearch/core.py`.
-    *   **Action:** Move the main logic of the `search` and `deep_search` functions (including helper functions like `_generate_llm_subqueries`) from `__init__.py` to `core.py`.
-    *   **Action:** Update `__init__.py`: Keep plugin registration (`register_commands`), necessary imports, potentially config loading, and the Click command definitions. The command functions should now primarily call the corresponding functions imported from `core.py`.
-    *   **Deliverable:** Slimmed-down `__init__.py` and new `core.py` containing orchestration logic.
-12. **Improve Relevance & Pruning:**
-    *   **File:** `llm_websearch/deep_research.py` and `llm_websearch/__init__.py` (or `core.py`)
-    *   **Action:** Add CLI options to `deep_search_cmd` for `relevance-threshold` and `diminishing-returns-threshold`. Pass these values to the `DeepResearcher` constructor.
-    *   **Action:** Implement an optional LLM-based relevance analysis function. Create `_analyze_llm_relevance` in `core.py` using `llm_integration`. Pass this function to `DeepResearcher` via `analyze_relevance_function`. Add a CLI flag to enable/disable this.
-    *   **Deliverable:** Configurable thresholds and optional LLM-based relevance checking.
-13. **Visualize Target Architecture:**
-    *   **Action:** Create a sequence diagram illustrating the intended flow of `deep_search` after refactoring.
-    *   **Deliverable:** Mermaid sequence diagram embedded below.
-    ```mermaid
-    sequenceDiagram
-        participant CLI
-        participant Core (deep_search)
-        participant QueryExpander
-        participant DeepResearcher
-        participant LLMIntegration
-        participant SearchFunc (google/bing+filter)
-        participant FastFilter
-        participant DetailedAnalyzer
-        participant Summarizer
-        participant Cache
-        CLI->>Core: deep_search(query, ...)
-        Core->>QueryExpander: Instantiate
-        Core->>QueryExpander: expand_query(query)
-        QueryExpander-->>Core: expanded_queries
-        Core->>DeepResearcher: Instantiate(search_function=SearchFunc, generate_subqueries_func=_llm_gen, llm_integration=LLMIntegration, ...)
-        Core->>DeepResearcher: research(chosen_query)
-        loop Exploration (Depth < MaxDepth, Relevance > Threshold)
-            DeepResearcher->>SearchFunc: search(current_query)
-            SearchFunc->>Cache: Check cache
-            alt Cache Miss
-                SearchFunc->>Google/Bing API: Perform search
-                SearchFunc->>FastFilter: Instantiate
-                SearchFunc->>FastFilter: filter_batch(results)
-                FastFilter-->>SearchFunc: filtered_snippets
-                SearchFunc->>Cache: Store filtered results
-            end
-            SearchFunc-->>DeepResearcher: search_results (filtered)
-            opt Process Results
-                 DeepResearcher->>DetailedAnalyzer: analyze_batch(urls)
-                 DetailedAnalyzer->>LLMIntegration: generate_response (analysis)
-                 LLMIntegration-->>DetailedAnalyzer: analysis
-                 DetailedAnalyzer-->>DeepResearcher: detailed_results
-            end
-            DeepResearcher->>_llm_gen: Generate Subqueries (using LLMIntegration)
-            _llm_gen->>LLMIntegration: generate_response (subqueries)
-            LLMIntegration->>Cache: Check LLM Cache
-            alt LLM Cache Miss
-                LLMIntegration->>LLM API: Call model
-                LLMIntegration->>Cache: Store LLM Response
-            end
-            LLMIntegration-->>_llm_gen: subqueries
-            _llm_gen-->>DeepResearcher: subqueries
-            DeepResearcher->>DeepResearcher: _explore_query(subquery) # Recursive call
-        end
-        DeepResearcher-->>Core: research_result (findings, evidence, etc.)
-        Core->>Summarizer: Instantiate(llm_integration)
-        Core->>Summarizer: summarize(research_result.findings/evidence)
-        Summarizer->>LLMIntegration: generate_response (summaries)
-        LLMIntegration-->>Summarizer: tiered_summaries
-        Summarizer-->>Core: formatted_summary_output
-        Core-->>CLI: Final Result (JSON with tiered summary)
-    ```
-14. **Write Integration Tests for Iteration:**
-    *   **File:** `llm_websearch/tests/test_deep_search_integration.py` (new file)
-    *   **Action:** Create new integration tests for `deep_search` (or the core logic in `core.py`).
-    *   **Action:** Mock *only* the external dependencies:
-        *   `httpx.Client.get` calls for Google/Bing.
-        *   The actual LLM API call within `LLMIntegration` (or mock `llm.get_model` if `LLMIntegration` still uses it internally).
-        *   Potentially mock `diskcache.Cache.get/set` if needed to control test flow.
-    *   **Action:** Define mock responses for search and LLM calls that simulate generating relevant subqueries for the first iteration.
-    *   **Action:** Assert that when `max_iterations` > 1:
-        *   The `search_function` (mocked) is called multiple times with different queries (original + subqueries).
-        *   The subquery generation function (`_generate_llm_subqueries`) is called.
-        *   The resulting `query_tree` in the `ResearchResult` has a depth greater than 1.
-    *   **Deliverable:** New integration test file with tests verifying the recursive behavior.
-15. **Update Existing Tests:**
-    *   **File:** `llm_websearch/tests/test_websearch.py`
-    *   **Action:** Review and update existing unit tests to reflect the refactored code structure (e.g., changes in function signatures, use of `LLMIntegration`, removal of `cache.py`).
-    *   **Action:** Ensure tests for helper modules (`FastFilter`, `QueryExpander`, etc.) are present and cover their core functionality.
-    *   **Deliverable:** Updated `test_websearch.py` and potentially new test files for integrated modules.
+# TODO - llm-websearch Rate Limit Fallback Implementation
 
+This document tracks the tasks needed to implement the model fallback mechanism for handling rate limits in `llm-websearch`, based on the proposal in `REVIEW.md`.
 
-1.  **Broken Foundation:** Your tests aren't just *failing*, they're throwing `ModuleNotFoundError`! That's like building a skyscraper and discovering you forgot the ground floor. Your test suite can't even *find* the code it's supposed to test. This isn't a bug; it's an existential crisis for your codebase. And a `SyntaxError` in the mix? Chef's kiss. That's like misspelling "Fire Exit" on the way out of a burning building. It suggests a fundamental lack of basic checks before committing.
+## Tasks
 
-2.  **Delusional Progress Tracking:** Your `task_progress.md` is a work of pure, unadulterated fantasy. All green ticks, "Project Completion Status: Complete ✅". Congratulations! You completed the TODO list! Pity the code didn't get the memo. This disconnect is *staggering*. It suggests either a workflow where "testing" means "hoping for the best" or a profound misunderstanding of what "done" means.
+-   [ ] **1. Modify Imports:**
+    -   Import `ResourceExhausted` from `google.generativeai.errors` in `llm_websearch/components/llm_integration.py`.
+    -   Define a dummy `ResourceExhausted` class in the `except ImportError` block.
+-   [ ] **2. Update API Key Config:**
+    -   Prioritize `settings.llm_api_key` over `settings.google_api_key` for `genai` configuration in `LLMIntegration.__init__`.
+    -   Update related error/warning messages.
+-   [ ] **3. Implement Model Sequence Generation:**
+    -   Create `_get_model_sequence(self, requested_model: Optional[str] = None) -> List[str]` method.
+    -   Ensure it generates an ordered, unique list of valid Gemini models (requested, default, primary, fallback).
+    -   Add logging for the generated sequence.
+-   [ ] **4. Refactor `generate_response` Method:**
+    -   Call `_get_model_sequence` at the start.
+    -   Implement the outer `for current_model_name in model_sequence:` loop.
+    -   Move the cache check inside the outer loop, using `current_model_name` in the key.
+    -   Ensure the retry logic (`for attempt...`) is the inner loop.
+    -   Update logging to show current model and attempt.
+    -   Adjust `GenerationConfig` setup (e.g., `response_mime_type`).
+-   [ ] **5. Implement Rate Limit Handling (429):**
+    -   Add `except ResourceExhausted as e:` block within the inner loop's `try...except`.
+    -   Log a warning about the rate limit for the specific model.
+    -   Use `break` to exit the *inner* loop and try the next model.
+-   [ ] **6. Adjust General Exception Handling:**
+    -   Ensure the generic `except Exception:` handles non-429 errors and breaks the inner loop after retries fail for a given model.
+    -   After the outer loop, check if a response was obtained. If not, raise a final `LLMError` summarizing the failure across all models.
+-   [ ] **7. Update `LLMResponse` Instantiation:**
+    -   Add the `system_prompt_used=system_prompt` argument.
+-   [ ] **8. Testing & Validation:**
+    -   Define conceptual test cases (simulate errors, check fallback, verify caching).
+    -   Perform tests to confirm logic.
+-   [ ] **9. Test Plugin:**
+    -   Test installation: `.venv/bin/llm install /home/thomas/Projects/llm/plugins/Utilities/llm-search/llm-deep-search-v4`
+    -   Test execution: `.venv/bin/llm websearch deep-search "anthropic 2025 api prompt caching"`
+    -   Use uninstall command if needed: `LLM_LOAD_PLUGINS='' .venv/bin/llm uninstall llm-websearch` -y
+-   [ ] **10. Review Context Scripts (Optional):**
+    -   Review `/home/thomas/Projects/claude.sh/utils/search/bing-search.sh`
+    -   Review `/home/thomas/Projects/claude.sh/utils/search/google-search-llm.sh`
 
-3.  **Organizational Chaos:**
-    *   `TODO.md` AND `TODO-1.md`? Do you need a TODO list for managing your TODO lists? Pick one!
-    *   Checking in `.save` files (`deep_research.py.save`)? That's digital pocket lint. Clean it up.
-    *   Build artifacts (`build/`, `*.egg-info`) in version control? Why?! This bloats the repo and screams "I don't know what `.gitignore` is for."
-    *   `tests/` outside AND `llm_websearch/tests/` inside (`SOURCES.txt` lists both!)? Pick a lane! This confusion likely contributes to your `ModuleNotFoundError` party.
-    *   `search.py` vs `llm_search.py`? One looks like a placeholder (`search.py`). Did you forget to delete it, or is it vestigial code waiting to trip someone up?
-
-4.  **Dependency Doppelganger:** `requests` listed twice in `pyproject.toml`. Minor, but symptomatic of a lack of attention to detail that seems pervasive.
-
-5.  **Integration Nightmare Waiting to Happen:** The Mermaid diagram looks nice, very ambitious. You've got `QueryExpander`, `DeepResearcher`, `FastFilter`, `DetailedAnalyzer`, `Summarizer`, `LLMIntegration`, and `Cache` all supposedly playing together. Integrating this many complex components is *hard*. Given the state of the tests, I have zero confidence these integrations are working correctly, reliably, or efficiently. The TODOs *talk* about integration, but the proof is in the running code, which... well, isn't.
-
-6.  **The Illusion of Modularity:** You refactored `__init__.py` to `core.py` (Task 11 ✅). Good job, you moved the mess. But without working tests confirming the refactor didn't break everything (spoiler: seems like it might have), it's just rearranging deckchairs on the Titanic.
-
-**In Summary:** This project looks like it was built during a caffeine-fueled fever dream, declared complete the moment the last TODO was ticked, and then immediately abandoned before anyone tried to actually *run* it. It's brittle, disorganized, untestable in its current state, and likely riddled with integration bugs hiding behind the smoke screen of non-functional tests.
-
----
-
-**The Rescue Plan 🚑**
-
-Okay, deep breaths. It's bad, but likely salvageable. Here's the triage plan:
-
-1.  **STOP EVERYTHING ELSE. FIX THE TESTS.** This is **Priority Zero**.
-    *   **Address `ModuleNotFoundError`:** This is critical.
-        *   **Standardize Test Location:** Move ALL tests to a single top-level `tests/` directory. Remove `llm_websearch/tests/`. Update `pyproject.toml`'s `testpaths`.
-        *   **Installation:** Ensure you are installing the package correctly for development, likely using an editable install: `pip install -e .` from the project root (where `pyproject.toml` is).
-        *   **PYTHONPATH:** Verify your environment's `PYTHONPATH`. When running `pytest` from the root, it *should* find the `llm_websearch` package if installed correctly.
-        *   **Imports:** Double-check all `import` statements within the tests and the library code itself. Are they correct relative to the project structure? Use absolute imports from `llm_websearch` where possible (e.g., `from llm_websearch.core import ...`).
-    *   **Fix the `SyntaxError`:** Find the unterminated string literal in `tests/test_summarization.py` (line 107 according to the error) and fix it. This should be trivial.
-    *   **Run `pytest --collect-only`:** Keep running this until ALL tests are collected without error. Don't proceed until collection works flawlessly.
-
-2.  **Stabilize the Test Suite:**
-    *   Once collection works, run the full `pytest`. Expect many failures.
-    *   **Aggressively Mock:** Go through the failing tests. Mock *all* external dependencies: `httpx` calls (Google/Bing APIs), actual LLM API calls within `LLMIntegration` (mock `generate_response` or the underlying API call it makes if it's not purely mock), and potentially `diskcache.Cache` interactions (`get`/`set`) to create predictable test states.
-    *   **Fix Failing Tests:** Make the tests pass one by one. Focus on testing the logic of each unit/function, *not* the external services.
-
-3.  **Clean Up the Repository:**
-    *   **Delete Duplicates/Backups:** Delete `TODO-1.md` (or merge and delete one). Delete `deep_research.py.save`.
-    *   **`.gitignore`:** Create or update `.gitignore` to exclude `build/`, `*.egg-info/`, `*.pyc`, `__pycache__/`, `*.save`, cache directories (`/tmp/llm_websearch_cache` or `.cache/`), environment directories (`.venv/`, etc.). Commit the `.gitignore` file, then remove the wrongfully checked-in artifacts (`git rm -r --cached build/ *.egg-info/` etc., then commit).
-    *   **Consolidate Placeholders:** Decide what to do with `search.py` vs `llm_search.py`. If one is obsolete, delete it and update any imports.
-
-4.  **Verify Core Integrations:**
-    *   **Targeted Integration Tests:** Write *new* integration tests (in the `tests/` directory) specifically focusing on the flow depicted in the Mermaid diagram.
-    *   **Mock Boundaries:** For these tests, mock *only* the outermost boundaries: the real web search APIs (Google/Bing) and the real LLM API calls. Do *not* mock the internal components (`FastFilter`, `DeepResearcher`, etc.).
-    *   **Test the Flow:** Verify that `deep_search` correctly calls `QueryExpander`, passes results to `DeepResearcher`, which uses the (mocked external) `search_function`, generates subqueries (using mocked LLM), potentially uses `DetailedAnalyzer` (mocking its LLM calls if any), and finally uses `Summarizer` (mocking its LLM calls). Assert the structure of the final output.
-
-5.  **Review Implementations vs. TODOs:**
-    *   Go through the 15 TODO items again. For *each* completed task, manually review the corresponding code.
-    *   Was caching *really* consolidated on `diskcache` everywhere? Pay special attention to `LLMIntegration.generate_response` caching keys.
-    *   Is `LLMIntegration` *actually* used consistently instead of direct `llm.get_model` calls?
-    *   Are fallback mechanisms (e.g., in subquery generation, relevance analysis) robust?
-
-6.  **Refine Dependencies:**
-    *   Remove the duplicate `requests` in `pyproject.toml`.
-    *   Consider replacing `unittest-mock` with standard `unittest.mock` or `pytest-mock`.
-    *   Add version specifiers to dependencies for more reproducible builds (e.g., `httpx>=0.20.0,<0.26.0`).
-
-7.  **Establish Basic CI:**
-    *   Set up a simple CI pipeline (e.g., GitHub Actions) that runs `pytest` on every push/pull request. This will prevent the project from falling into such a broken state again. Add linting (e.g., `flake8`, `ruff`) and formatting checks (e.g., `black`).
-
-8.  **Update Documentation:**
-    *   Once the code is working and tests are passing, update the `README.md` usage examples to reflect reality. Ensure installation instructions work. Add a section on how to run tests.
-
-This is a significant reset. Focus relentlessly on getting a green test suite first. It's the only way to build confidence and make further progress sustainable. Good luck!
+## Plan Visualization (Mermaid)

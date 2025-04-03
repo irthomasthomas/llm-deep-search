@@ -1,18 +1,20 @@
 [project]
 name = "llm-websearch"
-version = "0.1a.0"
+version = "0.1a0"
 description = "LLM plugin for web searching and deep searching with token optimization."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9" # Updated Python requirement for dependencies like google-generativeai
 dependencies = [
-    "requests",
-    "requests",
+    "aiolimiter",
+    "google-generativeai",
     "llm",
     "click",
     "httpx",
     "python-dotenv",
     "diskcache",
-    "beautifulsoup4"
+    "beautifulsoup4",
+    "pydantic>=2.0", 
+    "pydantic-settings"
 ]
 
 [project.entry-points.llm]
@@ -23,7 +25,7 @@ test = [
     "pytest",
     "pytest-asyncio",
     "pytest-mock",
-    "unittest-mock"
+    "respx" 
 ]
 
 [build-system]
@@ -32,3 +34,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."] 
+include = ["llm_websearch*"] 
+

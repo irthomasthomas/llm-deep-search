@@ -1,170 +1,179 @@
-# LLM-WebSearch: Deep Research Module
+# LLM-WebSearch Plugin
 
-The Deep Research module enables advanced recursive search capabilities, allowing LLMs to explore topics in depth by automatically generating and following subqueries.
+This plugin integrates web search capabilities directly into the `llm` CLI tool, allowing LLMs to perform standard web searches and deep, iterative research based on initial queries.
 
 ## Features
 
-- **Recursive Query Exploration**: Automatically generate and explore related subqueries based on initial search results
-- **Adaptive Relevance Analysis**: Intelligently determine which search paths are worth exploring further
-- **Path-based Exploration**: Track the search path through multiple levels of exploration
-- **FastFilter Integration**: Efficiently filter content for relevance using lightweight models
-- **LLM-based Analysis**: Leverage LLMs for enhanced subquery generation and content understanding
-- **Diminishing Returns Detection**: Automatically terminate search paths with diminishing information gain
-- **Contradiction Detection**: Identify and highlight contradictory information from different sources
-- **Entity Extraction**: Extract key entities and concepts from research findings
+- **Standard Search (`llm websearch search ...`)**:
+    - Combines results from configured search engines (Google Custom Search, Bing Custom Search).
+    - Deduplicates results based on URL.
+    - Optional fast relevance filtering using LLMs.
+    - Sorts results by rank.
+    - Formatted output in the terminal.
+- **Deep Search (`llm websearch deep-search ...`)**:
+    - Performs an initial search and analysis.
+    - Iteratively explores promising sub-queries based on findings (controlled by `max_iterations`).
+    - Analyzes content relevance using LLMs or keyword fallbacks.
+    - Extracts key insights and findings from explored paths.
+    - Identifies potential contradictions between different information sources.
+    - Generates multi-level summaries (short, medium, detailed) of the research.
+    - Provides formatted Markdown output summarizing the research process and results.
+- **Configurable**: Control API keys, models, search parameters, component behavior, and more via a YAML file (`llm_websearch_config.yaml`) and environment variables.
+- **Asynchronous**: Uses `asyncio` for concurrent operations (search engine requests, LLM calls).
+- **Caching**: Utilizes `diskcache` to cache search results and LLM responses, speeding up subsequent identical requests.
 
 ## Installation
 
+1.  **From PyPI (Stable Version - Not Yet Available):**
+    ```bash
+    llm install llm-websearch
+    # or
+    pip install llm-websearch
+    ```
+2.  **From Source (Development):**
+    Clone the repository and install in editable mode:
+    ```bash
+    git clone <repository_url> llm-websearch
+    cd llm-websearch
+    pip install -e .
+    ```
+    This requires having `llm` installed (`pip install llm`). Using a virtual environment is recommended.
+
+## Configuration
+
+The plugin requires API keys for search engines and potentially the LLM provider. Configuration is loaded from the following sources (highest priority first):
+
+1.  **Environment Variables**
+2.  **.env file** in the current working directory
+3.  **`llm_websearch_config.yaml`** file in the project root directory
+
+An example configuration file (`llm_websearch_config.yaml`) is provided. You **must** replace the placeholder values with your actual API keys and IDs.
+
+**Key Configuration Variables:**
+
+| Setting Name            | Environment Variable              | YAML Key                  | Description                                     | Default              |
+| ----------------------- | --------------------------------- | ------------------------- | ----------------------------------------------- | -------------------- |
+| Google API Key          | `GOOGLE_SEARCH_KEY`               | `google_api_key`          | Google Cloud API Key                            | `None`               |
+| Google CSE ID           | `GOOGLE_SEARCH_ID`                | `google_cse_id`           | Google Programmable Search Engine ID          | `None`               |
+| Bing API Key            | `BING_CUSTOM_SEARCH_KEY`          | `bing_api_key`            | Bing Custom Search Subscription Key             | `None`               |
+| Bing Custom Config ID | `BING_CUSTOM_CODE_SEARCH_CONF`    | `bing_custom_config_id` | Bing Custom Search Configuration ID           | `None`               |
+| LLM API Key             | `LLM_API_KEY` or `GOOGLE_SEARCH_KEY` | `llm_api_key`           | API Key for the LLM (uses Google key if unset) | `None`               |
+| Default LLM Model       | `LLM_MODEL_DEFAULT`             | `llm_model_default`       | Default model name (e.g., `gemini-1.5-flash-latest`) | `gemini-1.5-flash..` |
+| Max Results/Engine      | `MAX_RESULTS_PER_ENGINE`        | `max_results_per_engine`  | Results per search engine per query/iteration   | `10`                 |
+| Deep Search Iterations  | `DEEP_SEARCH_MAX_ITERATIONS`      | `deep_search_max_iterations` | Max recursion depth for deep search             | `3`                  |
+| Cache Enabled           | `CACHE_ENABLED`                   | `cache_enabled`           | Enable/disable disk caching                     | `True`               |
+| Log Level               | `LOG_LEVEL`                       | `log_level`               | Logging level (DEBUG, INFO, WARNING, ERROR)   | `INFO`               |
+
+*(See `llm_websearch/config.py` and `llm_websearch_config.yaml` for a full list of configurable settings.)*
+
+**Example `llm_websearch_config.yaml`:**
+```yaml
+# llm-websearch Configuration File
+# Environment variables (e.g., GOOGLE_SEARCH_KEY) will override values set here.
+
+# Google Search API (Custom Search Engine)
+google_api_key: "YOUR_GOOGLE_API_KEY_HERE"
+google_cse_id: "YOUR_GOOGLE_CSE_ID_HERE"
+
+# Bing Search API (Custom Search)
+bing_api_key: "YOUR_BING_API_KEY_HERE"
+bing_custom_config_id: "YOUR_BING_CONFIG_ID_HERE"
+
+# Optional: Override default LLM model
+# llm_model_default: "gemini-1.5-pro-latest"
+
+# Optional: Adjust search/research parameters
+# max_results_per_engine: 15
+# deep_search_max_iterations: 2
+```
+
+## Usage (CLI)
+
+Once installed and configured, the plugin adds commands under the `llm websearch` group.
+
+### Standard Search
+
+Performs a basic web search using configured engines.
+
 ```bash
-pip install llm-websearch
+llm websearch search "Your search query here" [OPTIONS]
 ```
 
-## Usage
+**Options:**
+- `-n <number>`: Number of results (default combines engine limits).
+- `-t <seconds>`: Timeout per search engine request.
+- `--filter`: Enable fast LLM-based relevance filtering (requires LLM API key).
+- `--verbose`: Enable detailed debug logging.
 
-### Basic Usage
+**Example:**
+```bash
+llm websearch search "python asyncio tutorial" -n 5
+```
+*(Output will be a formatted list of search results)*
+
+### Deep Search
+
+Performs an iterative, multi-level research process.
+
+```bash
+llm websearch deep-search "Your research topic here" [OPTIONS]
+```
+
+**Options:**
+- `-n <number>`: Number of results per search *iteration*.
+- `-t <seconds>`: General timeout for the entire deep search process.
+- `-i <number>`: Maximum number of exploration iterations (depth).
+- `-f [compact|summary|full]`: Output format (default: `summary`).
+- `--verbose`: Enable detailed debug logging.
+
+**Example:**
+```bash
+llm websearch deep-search "anthropic 2025 api prompt caching" -f full -n 10 -i 2 --verbose
+```
+*(Output will be a Markdown formatted report summarizing the research)*
+
+## Usage (Python API - Basic Example)
+
+While primarily intended as an `llm` CLI plugin, the core functions can be imported and used.
 
 ```python
-from llm_websearch import DeepResearcher
-from llm_websearch.search import search_web
+import asyncio
+from llm_websearch.core import deep_search, search
+from llm_websearch.config import settings # Settings are loaded automatically on import
 
-# Create a researcher with default parameters
-researcher = DeepResearcher(
-    search_function=search_web,
-    max_depth=3,
-    relevance_threshold=0.7,
-    max_workers=4,
-    timeout=300.0
-)
+async def main():
+    # Ensure API keys are set in environment or config file
+    if not settings.google_api_key or not settings.bing_api_key:
+        print("Warning: Search requires configured API keys!")
+        # return # Optionally exit if keys missing
 
-# Perform deep research on a topic
-result = researcher.research("quantum computing applications")
+    print("--- Standard Search ---")
+    standard_results = await search("Benefits of prompt caching", num_results=5)
+    if standard_results:
+        for i, res in enumerate(standard_results):
+            print(f"{i+1}. {res.title} ({res.url})")
+    else:
+        print("Standard search returned no results.")
 
-# Access research results
-print(f"Found {len(result.key_findings)} key findings")
-for finding in result.key_findings:
-    print(f"- {finding['finding']} (confidence: {finding['confidence']:.2f})")
-    print(f"  Source: {finding['source']}")
+    print("
+--- Deep Search ---")
+    # Deep search returns Markdown string on success, dict on error
+    deep_result_output = await deep_search(
+        "Benefits of prompt caching",
+        num_results=5, # Results per iteration
+        max_iterations=1 # Limit depth for example
+    )
+
+    if isinstance(deep_result_output, str):
+        print("Deep Search Results (Markdown):")
+        print(deep_result_output)
+    else: # Error dictionary returned
+        print(f"Deep Search Failed: {deep_result_output.get('error_message')}")
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
-
-### Advanced Configuration
-
-```python
-from llm_websearch import DeepResearcher, FastFilter, LLMIntegration
-
-# Create FastFilter for efficient content filtering
-fast_filter = FastFilter(threshold=0.7, lightweight_model="gemini-2.0-flash")
-
-# Create LLM integration for enhanced analysis
-llm_integration = LLMIntegration()
-
-# Create researcher with advanced configuration
-researcher = DeepResearcher(
-    search_function=search_web,
-    max_depth=4,
-    relevance_threshold=0.6,
-    max_workers=8,
-    timeout=600.0,
-    fast_filter=fast_filter,
-    llm_integration=llm_integration,
-    exploration_budget=150,
-    diminishing_returns_threshold=0.15
-)
-
-# Perform research
-result = researcher.research("climate change mitigation strategies")
-
-# Access advanced results
-print("Key Findings:")
-for finding in result.key_findings[:5]:
-    print(f"- {finding['finding']}")
-
-print("\nContradictions:")
-for contradiction in result.contradictions:
-    print(f"- {contradiction['contradiction']}")
-
-print("\nKey Entities:")
-for entity, data in result.entities.items():
-    print(f"- {entity} (importance: {data['importance']:.2f})")
-    print(f"  {data['description']}")
-```
-
-## API Reference
-
-### DeepResearcher
-
-The main class for performing deep research.
-
-```python
-DeepResearcher(
-    search_function,
-    max_depth=3,
-    relevance_threshold=0.7,
-    max_workers=4,
-    timeout=300.0,
-    generate_subqueries_function=None,
-    analyze_relevance_function=None,
-    extract_findings_function=None,
-    fast_filter=None,
-    llm_integration=None,
-    exploration_budget=100,
-    diminishing_returns_threshold=0.1
-)
-```
-
-#### Parameters
-
-- `search_function`: Function that performs web searches
-- `max_depth`: Maximum depth for recursive exploration
-- `relevance_threshold`: Minimum relevance score to continue exploration
-- `max_workers`: Maximum number of concurrent workers
-- `timeout`: Research timeout in seconds
-- `generate_subqueries_function`: Optional custom function to generate subqueries
-- `analyze_relevance_function`: Optional custom function to analyze relevance
-- `extract_findings_function`: Optional custom function to extract findings
-- `fast_filter`: Optional FastFilter instance for content filtering
-- `llm_integration`: Optional LLMIntegration instance for LLM-based operations
-- `exploration_budget`: Maximum number of queries to explore
-- `diminishing_returns_threshold`: Threshold for determining diminishing returns
-
-### ResearchResult
-
-Container for deep research results.
-
-#### Properties
-
-- `query`: Original query string
-- `query_tree`: Dictionary mapping parent queries to their subqueries
-- `key_findings`: List of key findings with their metadata
-- `evidence`: List of supporting evidence
-- `confidence_score`: Overall confidence score for the research
-- `research_time`: Time taken for research in seconds
-- `exploration_paths`: List of all explored search paths
-- `contradictions`: List of contradictory information found
-- `entities`: Dictionary of key entities and concepts
-
-## Examples
-
-### Exploring a Technical Topic
-
-```python
-result = researcher.research("quantum cryptography implementations")
-
-# Print exploration paths
-for path in result.exploration_paths:
-    print(f"Path: {path.query} (depth: {path.depth}, relevance: {path.relevance_score:.2f})")
-```
-
-### Researching Controversial Topics
-
-```python
-result = researcher.research("artificial intelligence risks and benefits")
-
-# Print contradictions
-for contradiction in result.contradictions:
-    print(f"Contradiction: {contradiction['contradiction']}")
-    print(f"Between: '{contradiction['finding1']}' and '{contradiction['finding2']}'")
-    print(f"Confidence: {contradiction['confidence']:.2f}")
-```
+*(Note: The internal structure, component initialization, and result objects are subject to change. Relying on the core `search` and `deep_search` functions is recommended for stability.)*
 
 ## License
 
