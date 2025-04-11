@@ -482,12 +482,12 @@ def deep_search_old(query: str, num_results: int = 10, timeout: float = 30.0, ma
                     processed_results.append(ProcessedResult(url=result.url if hasattr(result, "url") else result["url"], title=result.title if hasattr(result, "title") else result["title"], summary=summary, source=result.source if hasattr(result, "source") else result["source"]))
                     all_summaries.append(summary)
                 except Exception as e:
-                    logger.error(f"Error processing {result.url if hasattr(result, "url") else result["url"]}: {e}")
+                    logger.error(f"Error processing {result.url if hasattr(result, 'url') else result['url']}: {e}")
 
         all_results.extend(processed_results)
 
         # Extract summaries and perform analysis
-        combined_summaries = " ".join(f"{res.title if hasattr(res, "title") else res["title"]} ({res.url if hasattr(res, "url") else res["url"]}):{res.summary}" for res in processed_results)
+        combined_summaries = " ".join(f"{res.title if hasattr(res, 'title') else res['title']} ({res.url if hasattr(res, 'url') else res['url']}): {res.summary}" for res in processed_results)
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_themes = executor.submit(extract_themes, combined_summaries, current_query)
             future_contradictions = executor.submit(detect_contradictions, combined_summaries)
@@ -594,10 +594,10 @@ def register_commands(cli):
         try:
             results = search(query, num_results, timeout)
             for i, result in enumerate(results, 1):
-                click.echo(f"{i}. {result.title if hasattr(result, "title") else result["title"]}")
-                click.echo(f"   URL: {result.url if hasattr(result, "url") else result["url"]}")
-                click.echo(f"   Snippet: {result.snippet if hasattr(result, "snippet") else result["snippet"]}")
-                click.echo(f"   Source: {result.source if hasattr(result, "source") else result["source"]}")
+                click.echo(f"{i}. {result.title if hasattr(result, 'title') else result['title']}")
+                click.echo(f"   URL: {result.url if hasattr(result, 'url') else result['url']}")
+                click.echo(f"   Snippet: {result.snippet if hasattr(result, 'snippet') else result['snippet']}")
+                click.echo(f"   Source: {result.source if hasattr(result, 'source') else result['source']}")
                 click.echo()
         except SearchError as e:
             click.echo(f"Error: {e}", err=True)

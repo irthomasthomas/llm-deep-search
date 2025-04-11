@@ -242,9 +242,9 @@ class DeepResearcher:
                         "query": query,
                         "depth": path.depth,
                         "confidence": path.relevance_score * (0.9 - (i * 0.1)),  # Decrease confidence for lower ranked results
-                        "finding": f"{result.title if hasattr(result, "title") else result["title"]} - {result.snippet if hasattr(result, "snippet") else result["snippet"]}",
-                        "source": result.source if hasattr(result, "source") else result["source"],
-                        "url": result.url if hasattr(result, "url") else result["url"]
+                        "finding": f"{result.title if hasattr(result, 'title') else result['title']} - {result.snippet if hasattr(result, 'snippet') else result['snippet']}",
+                        "source": result.source if hasattr(result, 'source') else result['source'],
+                        "url": result.url if hasattr(result, 'url') else result['url']
                     }
                     findings.append(finding)
         
